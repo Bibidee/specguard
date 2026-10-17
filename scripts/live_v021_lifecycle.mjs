@@ -1,3 +1,5 @@
+throw new Error("ARCHIVED: historical v0.2.1 transaction script disabled. It can access local keychain signers and submit funded writes. See docs/DEPLOYMENT.md; do not run.");
+
 import { createHash } from "node:crypto";
 import { createRequire } from "node:module";
 import { join } from "node:path";

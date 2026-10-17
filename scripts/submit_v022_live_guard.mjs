@@ -1,3 +1,5 @@
+throw new Error("ARCHIVED: completed v0.2.2 implementation-submission script disabled. It can access a local keychain signer and submit a write. See docs/DEPLOYMENT.md; do not run.");
+
 import { createRequire } from "node:module";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";

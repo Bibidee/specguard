@@ -3,6 +3,7 @@ import json
 from datetime import datetime, timezone
 
 import pytest
+import sys
 
 
 CONTRACT = "contracts/specguard.py"
@@ -226,6 +227,46 @@ def test_malformed_output_fails_closed(direct_vm, direct_deploy, direct_alice, d
     assert row.status == "retryable"
     assert int(row.deposit) == 10**15
     assert int(row.review_deadline) == original_deadline + 900
+
+
+def test_consensus_unavailable_near_deadline_is_retryable_but_has_no_grace(direct_vm, direct_deploy, direct_alice, direct_bob, direct_charlie, monkeypatch):
+    """Lock in the v0.2.2 bounded-timeout policy without changing deployed code.
+
+    Direct Mode normally returns the leader result, so a non-dictionary
+    consensus result requires explicit VM-boundary fault injection. The public
+    ``review`` and ``expire`` calls still exercise the deployed contract's
+    state machine. Unlike an infrastructure result, this path gets cooldown
+    only: it cannot approve or extend the deadline.
+    """
+    contract = active_contract(direct_vm, direct_deploy, direct_alice, direct_bob, direct_charlie)
+    row = contract.get_guard("SG-001")
+    deadline = int(row.review_deadline)
+    near_deadline = deadline - 1
+    direct_vm._datetime = datetime.fromtimestamp(near_deadline, timezone.utc).isoformat().replace("+00:00", "Z")
+    monkeypatch.setattr(sys.modules["genlayer.gl.vm"], "run_nondet_unsafe", lambda leader, validator: None)
+    direct_vm.sender = direct_alice
+    contract.review("SG-001")
+    row = contract.get_guard("SG-001")
+    assert row.status == "retryable"
+    assert row.reason == "consensus_unavailable"
+    assert int(row.review_deadline) == deadline
+    assert int(row.next_review_at) == near_deadline + 900
+    assert int(row.deposit) == 10**15
+    direct_vm._datetime = datetime.fromtimestamp(deadline, timezone.utc).isoformat().replace("+00:00", "Z")
+    contract.expire("SG-001")
+    row = contract.get_guard("SG-001")
+    assert row.status == "refunded_sponsor"
+    assert int(row.deposit) == 0
+
+
+def test_validator_disagreement_rejects_approval_equivalence(direct_vm, direct_deploy, direct_alice, direct_bob, direct_charlie):
+    contract = active_contract(direct_vm, direct_deploy, direct_alice, direct_bob, direct_charlie)
+    wire_mocks(direct_vm)
+    direct_vm.sender = direct_alice
+    contract.review("SG-001")
+    direct_vm.clear_mocks()
+    wire_mocks(direct_vm, {"spec_match": "no", "evidence_support": "yes", "risk": "no", "confidence": 92, "rationale": "The implementation omits the required statement."})
+    assert direct_vm.run_validator() is False
 
 
 def test_hash_mismatch_never_approves(direct_vm, direct_deploy, direct_alice, direct_bob, direct_charlie):

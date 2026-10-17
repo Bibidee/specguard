@@ -48,7 +48,7 @@ HTTPS publisher, or guarantee an LLM judgment is correct.
 `submitted <-> retryable`, followed by `expire -> refunded_sponsor` if the
 review deadline passes. A sponsor may cancel only before beneficiary acceptance.
 
-v0.2.0 also lets the beneficiary register one HTTPS specification mirror while
+v0.2.2 also lets the beneficiary register one HTTPS specification mirror while
 the guard is active. It is used whenever the sponsor-controlled primary cannot
 verify against the original SHA-256, including a substituted response. Neither
 source can authorize a review unless its bytes match that commitment; if both
@@ -83,3 +83,8 @@ child transfer also finalized with `value_credited: true`; the canonical final
 record has `deposit: 0` and `settled_amount: 1000000000000000`. Full receipts,
 immutable artifact commitments, and superseded deployment history are in
 [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md).
+
+Historical transaction scripts are intentionally disabled because they can
+access a locally unlocked signer and submit writes. The remaining
+`scripts/verify_source_parity.mjs` utility is read-only: it verifies finalized
+deployment status before retrieving and comparing source bytes.

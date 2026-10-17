@@ -63,6 +63,17 @@ canonical release. v0.2.1 later exposed a persisted-`Address` comparison
 regression during a real role transition; v0.2.2 replaces it with canonical
 address comparisons. No historical deployment should be used for new guards.
 
+## Historical v0.2.1 — superseded; do not use
+
+- Contract: `0xBDD3542C4BFA58455b75A03D59706538DA0B5543`
+- Source SHA-256: `55a118...` (historical source record)
+
+Its real beneficiary-acceptance attempt exposed a persisted-`Address` runtime
+comparison defect: the same EVM address could be represented by distinct
+runtime objects and was rejected. The rejected write did not modify escrow
+state. v0.2.2 corrected authorization comparisons using canonical address text
+and is the only canonical release documented below.
+
 ## Canonical v0.2.2 — verified
 
 - Source commit: `f666b362a368906af151bb93822f3c55879b0f17`

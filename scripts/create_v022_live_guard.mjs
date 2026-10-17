@@ -1,3 +1,5 @@
+throw new Error("ARCHIVED: completed v0.2.2 funded-guard script disabled. It can access a local keychain signer and submit a payable write. See docs/DEPLOYMENT.md; do not run.");
+
 import { createHash } from "node:crypto";
 import { createRequire } from "node:module";
 import { join } from "node:path";

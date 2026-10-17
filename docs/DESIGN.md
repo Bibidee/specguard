@@ -37,6 +37,23 @@ has no approved-settlement path. `sponsor_counts` measures active funded cases,
 not lifetime creations, and is decremented exactly once by the common terminal
 settlement path.
 
+## Review deadlines and bounded availability grace
+
+`retryable` never authorizes payment. An infrastructure-classified observation
+(fetch, provider, or model-execution unavailability) sets a 15-minute review
+cooldown and extends the review deadline by the same amount, capped at a total
+of seven days per guard. This gives a bounded retry opportunity without making
+escrow indefinite.
+
+A non-dictionary result from the nondeterministic consensus boundary is stored
+as `retryable / consensus_unavailable`, also with the 15-minute cooldown, but
+does **not** consume the infrastructure-grace budget or extend the deadline.
+Consequently, if it happens near the already-agreed review deadline, there may
+be no time for another review before normal expiry refunds the sponsor. This is
+an explicit finite-liveness trade-off in v0.2.2: it cannot authorize payment,
+and neither party can force an approval, but it does not guarantee a retry in
+the final 15 minutes. The Direct Mode suite exercises this exact boundary.
+
 ## Intentional limitations
 
 HTTPS syntax validation cannot control DNS rebinding, redirects, or external
