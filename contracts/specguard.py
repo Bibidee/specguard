@@ -1,4 +1,4 @@
-# v0.1.0
+# v0.1.1
 # { "Depends": "py-genlayer:1jb45aa8ynh2a9c9xn3b7qqh8sm5q93hwfp7jqmwsfhh8jpz09h6" }
 """SpecGuard: hash-bound specification conformance with GEN escrow.
 
@@ -20,7 +20,7 @@ from urllib.parse import urlsplit
 from genlayer import Address, TreeMap, allow_storage, gl, u256
 
 
-VERSION = "0.1.0"
+VERSION = "0.1.1"
 EXPECTED = "[EXPECTED]"
 
 FUNDED = "funded"
@@ -81,18 +81,6 @@ class Guard:
     settled_amount: u256
     review_count: u256
     next_review_at: u256
-
-
-class GuardCreated(gl.Event):
-    def __init__(self, guard_id: str, sponsor: Address, beneficiary: Address, consumer: Address, /, **blob): ...
-
-
-class GuardReviewed(gl.Event):
-    def __init__(self, guard_id: str, sponsor: Address, status: str, /, **blob): ...
-
-
-class GuardSettled(gl.Event):
-    def __init__(self, guard_id: str, sponsor: Address, recipient: Address, /, **blob): ...
 
 
 @gl.evm.contract_interface
@@ -386,7 +374,6 @@ class SpecGuard(gl.Contract):
             _bounded(brief, "brief", MAX_BRIEF), _url(spec_url), _hash(spec_hash), u256(now), u256(delivery), u256(window),
             u256(0), "", "", "", "", "", "", FUNDED, u256(0), "", "", gl.message.value, u256(0), u256(0), u256(0))
         self.sponsor_counts[sponsor.as_hex.lower()] = u256(int(count) + 1)
-        GuardCreated(guard_id, sponsor, beneficiary_address, consumer_address).emit()
 
     @gl.public.write
     def accept_guard(self, guard_id: str) -> None:
@@ -443,7 +430,6 @@ class SpecGuard(gl.Contract):
             guard.status, guard.reason = BLOCKED, str(result.get("reason", "integrity_failure"))[:64]
         else:
             guard.status, guard.reason, guard.next_review_at = RETRYABLE, str(result.get("reason", "provider_unavailable"))[:64], u256(now + REVIEW_COOLDOWN)
-        GuardReviewed(guard.guard_id, guard.sponsor, guard.status).emit()
 
     def _settle(self, guard: Guard, recipient: Address, settlement: str) -> None:
         amount = guard.deposit
@@ -453,7 +439,6 @@ class SpecGuard(gl.Contract):
         guard.settled_amount = amount
         guard.status = PAID_BENEFICIARY if settlement == "paid_beneficiary" else REFUNDED_SPONSOR
         guard.reason = settlement
-        GuardSettled(guard.guard_id, guard.sponsor, recipient, amount=amount, settlement=settlement).emit()
         _send_gen(recipient, amount)
 
     @gl.public.write

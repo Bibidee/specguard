@@ -59,5 +59,8 @@ python -m pytest tests -q
 python scripts/preflight.py
 ```
 
-Deployment evidence will be recorded in [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md)
-only after a frozen source has passed the release gate and finalized on StudioNet.
+The original v0.1.0 deployment is superseded after StudioNet rejected its
+nonessential event-emission calls during the first payable write. The corrected
+v0.1.1 source is release-gated and must be freshly deployed before a canonical
+address is published. See [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) for the
+full historical evidence and the final-release record when available.
