@@ -84,7 +84,7 @@ def test_create_accept_submit_persists_commitments(direct_vm, direct_deploy, dir
     assert row.beneficiary.as_hex.lower() == address(direct_bob).lower()
     assert row.consumer.as_hex.lower() == address(direct_charlie).lower()
     assert int(row.deposit) == 10**15
-    assert contract.get_info()["version"] == "0.2.1"
+    assert contract.get_info()["version"] == "0.2.2"
 
 
 @pytest.mark.parametrize("field,value", [

@@ -1,4 +1,4 @@
-# v0.2.1
+# v0.2.2
 # { "Depends": "py-genlayer:1jb45aa8ynh2a9c9xn3b7qqh8sm5q93hwfp7jqmwsfhh8jpz09h6" }
 """SpecGuard: hash-bound specification conformance with GEN escrow.
 
@@ -20,7 +20,7 @@ from urllib.parse import urlsplit
 from genlayer import Address, TreeMap, allow_storage, gl, u256
 
 
-VERSION = "0.2.1"
+VERSION = "0.2.2"
 EXPECTED = "[EXPECTED]"
 
 FUNDED = "funded"
@@ -137,6 +137,19 @@ def _address(value, label: str) -> Address:
     if result.as_hex.lower() == "0x" + "0" * 40:
         raise gl.vm.UserError(f"{EXPECTED} Zero {label}")
     return result
+
+
+def _same_address(left: Address, right: Address) -> bool:
+    """Compare address identity canonically across persisted/runtime objects.
+
+    GenVM may deserialize an Address from storage into a distinct Python object
+    from ``gl.message.sender_address``. Protocol authorization must depend on
+    the canonical EVM address, never Python object identity.
+    """
+    try:
+        return left.as_hex.lower() == right.as_hex.lower()
+    except Exception:
+        return False
 
 
 def _hash(value) -> str:
@@ -388,7 +401,7 @@ class SpecGuard(gl.Contract):
         sponsor = gl.message.sender_address
         beneficiary_address = _address(beneficiary, "beneficiary")
         consumer_address = _address(consumer, "consumer")
-        if beneficiary_address == sponsor:
+        if _same_address(beneficiary_address, sponsor):
             raise gl.vm.UserError(f"{EXPECTED} Sponsor and beneficiary must differ")
         if int(gl.message.value) < MIN_DEPOSIT:
             raise gl.vm.UserError(f"{EXPECTED} Funding below minimum")
@@ -410,21 +423,23 @@ class SpecGuard(gl.Contract):
     @gl.public.write
     def accept_guard(self, guard_id: str) -> None:
         guard = self._get(guard_id)
-        if guard.status != FUNDED or guard.beneficiary != gl.message.sender_address or _now() >= int(guard.deliver_by):
+        if (guard.status != FUNDED or not _same_address(guard.beneficiary, gl.message.sender_address)
+                or _now() >= int(guard.deliver_by)):
             raise gl.vm.UserError(f"{EXPECTED} Cannot accept guard")
         guard.status = ACTIVE
 
     @gl.public.write
     def set_spec_mirror(self, guard_id: str, mirror_url: str) -> None:
         guard = self._get(guard_id)
-        if guard.status != ACTIVE or guard.beneficiary != gl.message.sender_address:
+        if guard.status != ACTIVE or not _same_address(guard.beneficiary, gl.message.sender_address):
             raise gl.vm.UserError(f"{EXPECTED} Cannot set specification mirror")
         guard.spec_mirror_url = _url(mirror_url)
 
     @gl.public.write
     def submit_implementation(self, guard_id: str, artifact_kind: str, implementation_url: str, implementation_hash: str, evidence_url: str, evidence_hash: str, summary: str) -> None:
         guard = self._get(guard_id)
-        if guard.status != ACTIVE or guard.beneficiary != gl.message.sender_address or _now() >= int(guard.deliver_by):
+        if (guard.status != ACTIVE or not _same_address(guard.beneficiary, gl.message.sender_address)
+                or _now() >= int(guard.deliver_by)):
             raise gl.vm.UserError(f"{EXPECTED} Cannot submit implementation")
         if artifact_kind not in ("text", "image"):
             raise gl.vm.UserError(f"{EXPECTED} Unsupported artifact kind")
@@ -443,7 +458,7 @@ class SpecGuard(gl.Contract):
         now = _now()
         if guard.status not in (SUBMITTED, RETRYABLE) or now >= int(guard.review_deadline) or now < int(guard.next_review_at):
             raise gl.vm.UserError(f"{EXPECTED} Guard is not reviewable")
-        if gl.message.sender_address not in (guard.sponsor, guard.beneficiary, guard.consumer):
+        if not any(_same_address(gl.message.sender_address, role) for role in (guard.sponsor, guard.beneficiary, guard.consumer)):
             raise gl.vm.UserError(f"{EXPECTED} Caller is not authorized to review")
         snapshot = {"brief": str(guard.brief), "spec_url": str(guard.spec_url), "spec_mirror_url": str(guard.spec_mirror_url), "spec_hash": str(guard.spec_hash),
             "artifact_kind": str(guard.artifact_kind), "implementation_url": str(guard.implementation_url),
@@ -491,14 +506,14 @@ class SpecGuard(gl.Contract):
     @gl.public.write
     def settle_approved(self, guard_id: str) -> None:
         guard = self._get(guard_id)
-        if guard.status != APPROVED or guard.consumer != gl.message.sender_address:
+        if guard.status != APPROVED or not _same_address(guard.consumer, gl.message.sender_address):
             raise gl.vm.UserError(f"{EXPECTED} Only consumer may settle approved guard")
         self._settle(guard, guard.beneficiary, "paid_beneficiary")
 
     @gl.public.write
     def settle_after_consumer_timeout(self, guard_id: str) -> None:
         guard = self._get(guard_id)
-        if (guard.status != APPROVED or guard.beneficiary != gl.message.sender_address
+        if (guard.status != APPROVED or not _same_address(guard.beneficiary, gl.message.sender_address)
                 or _now() < int(guard.consumer_settle_after)):
             raise gl.vm.UserError(f"{EXPECTED} Consumer settlement period remains active")
         self._settle(guard, guard.beneficiary, "paid_beneficiary")
@@ -513,7 +528,7 @@ class SpecGuard(gl.Contract):
     @gl.public.write
     def cancel_unaccepted(self, guard_id: str) -> None:
         guard = self._get(guard_id)
-        if guard.status != FUNDED or guard.sponsor != gl.message.sender_address:
+        if guard.status != FUNDED or not _same_address(guard.sponsor, gl.message.sender_address):
             raise gl.vm.UserError(f"{EXPECTED} Cannot cancel guard")
         self._settle(guard, guard.sponsor, "refunded_sponsor")
         guard.status = CANCELLED
