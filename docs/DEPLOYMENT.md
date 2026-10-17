@@ -66,7 +66,9 @@ address comparisons. No historical deployment should be used for new guards.
 ## Historical v0.2.1 — superseded; do not use
 
 - Contract: `0xBDD3542C4BFA58455b75A03D59706538DA0B5543`
-- Source SHA-256: `55a118...` (historical source record)
+
+This address is retained only as historical context; it is not a current
+deployment or source-parity claim.
 
 Its real beneficiary-acceptance attempt exposed a persisted-`Address` runtime
 comparison defect: the same EVM address could be represented by distinct
