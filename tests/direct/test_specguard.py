@@ -246,3 +246,39 @@ def test_timeout_and_unaccepted_cancellation_refund(direct_vm, direct_deploy, di
     direct_vm._datetime = datetime.fromtimestamp(chain_now(direct_vm) + 7201, timezone.utc).isoformat().replace("+00:00", "Z")
     contract.expire("SG-002")
     assert contract.get_guard("SG-002").status == "refunded_sponsor"
+
+
+def test_infrastructure_grace_delays_then_bounds_timeout_refund(direct_vm, direct_deploy, direct_alice, direct_bob, direct_charlie):
+    contract = active_contract(direct_vm, direct_deploy, direct_alice, direct_bob, direct_charlie)
+    initial_deadline = int(contract.get_guard("SG-001").review_deadline)
+    wire_mocks(direct_vm, {"malformed": "output"})
+    direct_vm.sender = direct_alice
+    contract.review("SG-001")
+    row = contract.get_guard("SG-001")
+    assert row.status == "retryable"
+    assert int(row.review_deadline) == initial_deadline + 900
+    direct_vm._datetime = datetime.fromtimestamp(initial_deadline + 1, timezone.utc).isoformat().replace("+00:00", "Z")
+    with direct_vm.expect_revert():
+        contract.expire("SG-001")
+    direct_vm._datetime = datetime.fromtimestamp(int(row.review_deadline) + 1, timezone.utc).isoformat().replace("+00:00", "Z")
+    contract.expire("SG-001")
+    assert contract.get_guard("SG-001").status == "refunded_sponsor"
+    with direct_vm.expect_revert():
+        contract.expire("SG-001")
+
+
+def test_terminal_settlement_is_one_shot_and_roles_cannot_redirect(direct_vm, direct_deploy, direct_alice, direct_bob, direct_charlie):
+    contract = active_contract(direct_vm, direct_deploy, direct_alice, direct_bob, direct_charlie)
+    wire_mocks(direct_vm)
+    direct_vm.sender = direct_alice
+    contract.review("SG-001")
+    direct_vm.sender = direct_charlie
+    contract.settle_approved("SG-001")
+    row = contract.get_guard("SG-001")
+    assert row.status == "paid_beneficiary"
+    assert int(row.deposit) == 0 and int(row.settled_amount) == 10**15
+    direct_vm.sender = direct_alice
+    with direct_vm.expect_revert():
+        contract.refund_blocked("SG-001")
+    with direct_vm.expect_revert():
+        contract.settle_approved("SG-001")
