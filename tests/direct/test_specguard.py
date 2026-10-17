@@ -33,7 +33,7 @@ def deploy(direct_vm, direct_deploy, direct_alice):
     return direct_deploy(CONTRACT, sdk_version="v0.2.16")
 
 
-def create(contract, direct_vm, direct_alice, direct_bob, direct_charlie, **changes):
+def create(contract, direct_vm, direct_alice, direct_bob, direct_charlie, funding=10**15, **changes):
     direct_vm.sender = direct_alice
     fields = {
         "guard_id": "SG-001", "beneficiary": address(direct_bob), "consumer": address(direct_charlie),
@@ -42,7 +42,7 @@ def create(contract, direct_vm, direct_alice, direct_bob, direct_charlie, **chan
         "deliver_by": chain_now(direct_vm) + 7200, "review_window": 7200,
     }
     fields.update(changes)
-    direct_vm.value = 10**15
+    direct_vm.value = funding
     contract.create_guard(**fields)
     direct_vm.value = 0
     return fields
@@ -109,6 +109,53 @@ def test_duplicate_and_non_beneficiary_submission_rejected(direct_vm, direct_dep
     direct_vm.sender = direct_alice
     with direct_vm.expect_revert():
         contract.submit_implementation("SG-001", "text", IMPLEMENTATION_URL, digest(IMPLEMENTATION), EVIDENCE_URL, digest(EVIDENCE), "wrong caller")
+
+
+@pytest.mark.parametrize("changes,funding", [
+    ({"beneficiary": "0x" + "0" * 40}, 10**15),
+    ({"consumer": "0x" + "0" * 40}, 10**15),
+    ({"deliver_by": 1}, 10**15),
+    ({"review_window": 3599}, 10**15),
+    ({}, 10**15 - 1),
+])
+def test_invalid_payable_creation_never_creates_or_counts_a_guard(direct_vm, direct_deploy, direct_alice, direct_bob, direct_charlie, changes, funding):
+    """Direct Mode proves contract-state rollback, not network balance rollback."""
+    contract = deploy(direct_vm, direct_deploy, direct_alice)
+    with direct_vm.expect_revert():
+        create(contract, direct_vm, direct_alice, direct_bob, direct_charlie, funding=funding, **changes)
+    with direct_vm.expect_revert():
+        contract.get_guard("SG-001")
+    # The same sponsor can use the ID after a rejected payable call: no guard
+    # record or active-case slot was persisted by contract execution.
+    create(contract, direct_vm, direct_alice, direct_bob, direct_charlie)
+    assert contract.get_guard("SG-001").status == "funded"
+
+
+def test_acceptance_and_review_reject_unauthorized_callers(direct_vm, direct_deploy, direct_alice, direct_bob, direct_charlie, direct_owner):
+    contract = deploy(direct_vm, direct_deploy, direct_alice)
+    create(contract, direct_vm, direct_alice, direct_bob, direct_charlie)
+    direct_vm.sender = direct_owner
+    with direct_vm.expect_revert():
+        contract.accept_guard("SG-001")
+    direct_vm.sender = direct_bob
+    contract.accept_guard("SG-001")
+    submit(contract, direct_vm, direct_bob)
+    direct_vm.sender = direct_owner
+    with direct_vm.expect_revert():
+        contract.review("SG-001")
+
+
+def test_cancellation_after_acceptance_and_exact_delivery_expiry(direct_vm, direct_deploy, direct_alice, direct_bob, direct_charlie):
+    contract = deploy(direct_vm, direct_deploy, direct_alice)
+    fields = create(contract, direct_vm, direct_alice, direct_bob, direct_charlie)
+    direct_vm.sender = direct_bob
+    contract.accept_guard("SG-001")
+    direct_vm.sender = direct_alice
+    with direct_vm.expect_revert():
+        contract.cancel_unaccepted("SG-001")
+    direct_vm._datetime = datetime.fromtimestamp(int(fields["deliver_by"]), timezone.utc).isoformat().replace("+00:00", "Z")
+    contract.expire("SG-001")
+    assert contract.get_guard("SG-001").status == "refunded_sponsor"
 
 
 def test_approved_review_and_designated_consumer_settlement(direct_vm, direct_deploy, direct_alice, direct_bob, direct_charlie):
