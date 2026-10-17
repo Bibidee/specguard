@@ -84,7 +84,7 @@ def test_create_accept_submit_persists_commitments(direct_vm, direct_deploy, dir
     assert row.beneficiary.as_hex.lower() == address(direct_bob).lower()
     assert row.consumer.as_hex.lower() == address(direct_charlie).lower()
     assert int(row.deposit) == 10**15
-    assert contract.get_info()["version"] == "0.1.1"
+    assert contract.get_info()["version"] == "0.2.0"
 
 
 @pytest.mark.parametrize("field,value", [
@@ -125,6 +125,38 @@ def test_approved_review_and_designated_consumer_settlement(direct_vm, direct_de
     assert row.status == "paid_beneficiary"
     assert int(row.deposit) == 0
     assert int(row.settled_amount) == 10**15
+
+
+def test_beneficiary_can_recover_approved_escrow_after_consumer_timeout(direct_vm, direct_deploy, direct_alice, direct_bob, direct_charlie):
+    contract = active_contract(direct_vm, direct_deploy, direct_alice, direct_bob, direct_charlie)
+    wire_mocks(direct_vm)
+    direct_vm.sender = direct_alice
+    contract.review("SG-001")
+    with direct_vm.expect_revert():
+        direct_vm.sender = direct_bob
+        contract.settle_after_consumer_timeout("SG-001")
+    row = contract.get_guard("SG-001")
+    direct_vm._datetime = datetime.fromtimestamp(int(row.consumer_settle_after) + 1, timezone.utc).isoformat().replace("+00:00", "Z")
+    direct_vm.sender = direct_bob
+    contract.settle_after_consumer_timeout("SG-001")
+    assert contract.get_guard("SG-001").status == "paid_beneficiary"
+
+
+def test_hash_bound_beneficiary_mirror_only_handles_primary_outage(direct_vm, direct_deploy, direct_alice, direct_bob, direct_charlie):
+    contract = deploy(direct_vm, direct_deploy, direct_alice)
+    create(contract, direct_vm, direct_alice, direct_bob, direct_charlie)
+    direct_vm.sender = direct_bob
+    contract.accept_guard("SG-001")
+    contract.set_spec_mirror("SG-001", "https://mirror.example.edu/spec.txt")
+    submit(contract, direct_vm, direct_bob)
+    direct_vm.mock_web(r"spec\.example\.org/contract\.txt", {"status": 503, "body": b"outage"})
+    direct_vm.mock_web(r"mirror\.example\.edu/spec\.txt", {"status": 200, "body": SPEC})
+    direct_vm.mock_web(r"build\.example\.net/result\.txt", {"status": 200, "body": IMPLEMENTATION})
+    direct_vm.mock_web(r"evidence\.example\.com/proof\.txt", {"status": 200, "body": EVIDENCE})
+    direct_vm.mock_llm(r"Independently assess a specification-conformance escrow", json.dumps({"spec_match": "yes", "evidence_support": "yes", "risk": "no", "confidence": 92, "rationale": "Mirror bytes exactly match the committed specification."}))
+    direct_vm.sender = direct_alice
+    contract.review("SG-001")
+    assert contract.get_guard("SG-001").status == "approved"
 
 
 @pytest.mark.parametrize("answer", [

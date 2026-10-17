@@ -57,3 +57,10 @@ Guard `SG-LIVE-1792250172` used sponsor
 The canonical post-settlement read reports `status: paid_beneficiary`,
 `reason: paid_beneficiary`, `deposit: 0`, and
 `settled_amount: 1000000000000000`.
+
+## v0.2.0 remediation candidate — not deployed
+
+This repository also contains a post-v0.1.1 remediation candidate. It changes
+storage and public methods, so it requires a fresh Studionet deployment and
+new source-parity proof before any address may be called canonical. No existing
+v0.1.1 guard or balance is modified by this candidate.

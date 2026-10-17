@@ -16,8 +16,9 @@ approval only after evidence has been verified.
 3. Independent GenLayer validators fetch the exact committed bytes, verify the
    digests before decoding, and assess conformance.
 4. A bounded consensus result becomes `approved`, `blocked`, or `retryable`.
-5. An approved escrow can be settled only by the designated consumer; blocked,
-   cancelled, and timed-out work has a deterministic sponsor-recovery path.
+5. The designated consumer has a seven-day exclusive approved-settlement
+   period. If it disappears, only the beneficiary can settle after that period;
+   the sponsor can never reclaim an approved guard.
 
 SpecGuard is an escrow primitive, not a deployment platform. It does not prove
 real-world identity, make external systems execute a change, authenticate an
@@ -47,6 +48,11 @@ HTTPS publisher, or guarantee an LLM judgment is correct.
 `submitted <-> retryable`, followed by `expire -> refunded_sponsor` if the
 review deadline passes. A sponsor may cancel only before beneficiary acceptance.
 
+v0.2.0 also lets the beneficiary register one HTTPS specification mirror while
+the guard is active. It is used only when the sponsor URL is unavailable and
+must hash to the original committed specification; a hash mismatch remains a
+blocked integrity failure.
+
 ## Development
 
 Only `contracts/specguard.py` is a deployable contract source. Test modules are
@@ -66,6 +72,15 @@ The canonical v0.1.1 deployment is
 Its exact source was retrieved through `gen_getContractCode` and matched this
 repository byte-for-byte (SHA-256
 `7ca2ef1c1d1d166c6672da8b518b3ae8fb71d4932e9cf4532a18ac6ce2df433b`).
+
+## v0.2.0 remediation candidate — not deployed
+
+The audited v0.2.0 branch adds active-case accounting, a beneficiary-only
+consumer-disappearance settlement fallback, and a hash-bound specification
+mirror. It is a new candidate and is not represented by the v0.1.1 address.
+Native transfer receipt credit remains network-observable rather than
+atomically provable by contract storage; the contract debits its ledger before
+dispatch and never retries a dispatched transfer, preventing duplicate payout.
 
 One live guard completed the full lifecycle: funded, accepted, submitted,
 approved at confidence 92, and paid to the beneficiary. The 0.001 GEN child
