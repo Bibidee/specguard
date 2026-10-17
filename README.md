@@ -88,3 +88,7 @@ Historical transaction scripts are intentionally disabled because they can
 access a locally unlocked signer and submit writes. The remaining
 `scripts/verify_source_parity.mjs` utility is read-only: it verifies finalized
 deployment status before retrieving and comparing source bytes.
+
+For the distinction between contract-controlled escrow checks, network-level
+value-transfer finality, and the approved live-test plan, see
+[docs/FINAL_AUDIT.md](docs/FINAL_AUDIT.md).
