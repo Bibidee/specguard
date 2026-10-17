@@ -59,8 +59,17 @@ python -m pytest tests -q
 python scripts/preflight.py
 ```
 
-The original v0.1.0 deployment is superseded after StudioNet rejected its
-nonessential event-emission calls during the first payable write. The corrected
-v0.1.1 source is release-gated and must be freshly deployed before a canonical
-address is published. See [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) for the
-full historical evidence and the final-release record when available.
+## StudioNet release evidence
+
+The canonical v0.1.1 deployment is
+[`0x70968dd0354236e3Eae6eb6eb9Cd3C3C01A4D0f0`](https://explorer-studio.genlayer.com/address/0x70968dd0354236e3Eae6eb6eb9Cd3C3C01A4D0f0).
+Its exact source was retrieved through `gen_getContractCode` and matched this
+repository byte-for-byte (SHA-256
+`7ca2ef1c1d1d166c6672da8b518b3ae8fb71d4932e9cf4532a18ac6ce2df433b`).
+
+One live guard completed the full lifecycle: funded, accepted, submitted,
+approved at confidence 92, and paid to the beneficiary. The 0.001 GEN child
+transfer finalized with `value_credited: true`; the final guard ledger records
+`deposit: 0` and `settled_amount: 1000000000000000`. Full receipts, immutable
+artifact commitments, and the historical v0.1.0 incident are in
+[docs/DEPLOYMENT.md](docs/DEPLOYMENT.md).
