@@ -75,11 +75,12 @@ Its exact source was retrieved through `gen_getContractCode` and matched this
 repository byte-for-byte (SHA-256
 `7ca2ef1c1d1d166c6672da8b518b3ae8fb71d4932e9cf4532a18ac6ce2df433b`).
 
-## v0.2.0 remediation candidate — not deployed
+## v0.2.1 remediation candidate — not deployed
 
-The audited v0.2.0 branch adds active-case accounting, a beneficiary-only
+The audited v0.2.1 branch adds active-case accounting, a beneficiary-only
 consumer-disappearance settlement fallback, and a hash-bound specification
-mirror. It is a new candidate and is not represented by the v0.1.1 address.
+mirror. It also grants up to seven days of bounded review-deadline grace for
+infrastructure-only outcomes. It is a new candidate and is not represented by the v0.1.1 address.
 Native transfer receipt credit remains network-observable rather than
 atomically provable by contract storage; the contract debits its ledger before
 dispatch and never retries a dispatched transfer, preventing duplicate payout.

@@ -1,4 +1,4 @@
-# v0.2.0
+# v0.2.1
 # { "Depends": "py-genlayer:1jb45aa8ynh2a9c9xn3b7qqh8sm5q93hwfp7jqmwsfhh8jpz09h6" }
 """SpecGuard: hash-bound specification conformance with GEN escrow.
 
@@ -20,7 +20,7 @@ from urllib.parse import urlsplit
 from genlayer import Address, TreeMap, allow_storage, gl, u256
 
 
-VERSION = "0.2.0"
+VERSION = "0.2.1"
 EXPECTED = "[EXPECTED]"
 
 FUNDED = "funded"
@@ -49,6 +49,7 @@ MAX_REVIEW_WINDOW = 30 * 24 * 3600
 REVIEW_COOLDOWN = 900
 MAX_CASES_PER_SPONSOR = 64
 CONSUMER_SETTLEMENT_WINDOW = 7 * 24 * 3600
+MAX_INFRASTRUCTURE_GRACE = 7 * 24 * 3600
 
 DECISION_KEYS = ("spec_match", "evidence_support", "risk", "confidence", "rationale")
 TRI = ("yes", "no", "unclear")
@@ -84,6 +85,7 @@ class Guard:
     next_review_at: u256
     consumer_settle_after: u256
     spec_mirror_url: str
+    infrastructure_grace_used: u256
 
 
 @gl.evm.contract_interface
@@ -287,7 +289,9 @@ def _equivalent(left, right) -> bool:
     if left.get("kind") != right.get("kind"):
         return False
     if left.get("kind") in ("integrity", "infrastructure"):
-        return True
+        left_reason, right_reason = left.get("reason"), right.get("reason")
+        return (isinstance(left_reason, str) and isinstance(right_reason, str)
+                and bool(left_reason) and left_reason == right_reason)
     if left.get("kind") != "analysis":
         return False
     a, b = left.get("analysis"), right.get("analysis")
@@ -400,7 +404,7 @@ class SpecGuard(gl.Contract):
             raise gl.vm.UserError(f"{EXPECTED} Invalid review window")
         self.guards[guard_id] = Guard(guard_id, sponsor, beneficiary_address, consumer_address,
             _bounded(brief, "brief", MAX_BRIEF), _url(spec_url), _hash(spec_hash), u256(now), u256(delivery), u256(window),
-            u256(0), "", "", "", "", "", "", FUNDED, u256(0), "", "", gl.message.value, u256(0), u256(0), u256(0), u256(0), "")
+            u256(0), "", "", "", "", "", "", FUNDED, u256(0), "", "", gl.message.value, u256(0), u256(0), u256(0), u256(0), "", u256(0))
         self.sponsor_counts[sponsor.as_hex.lower()] = u256(int(count) + 1)
 
     @gl.public.write
@@ -467,6 +471,11 @@ class SpecGuard(gl.Contract):
             guard.status, guard.reason = BLOCKED, str(result.get("reason", "integrity_failure"))[:64]
         else:
             guard.status, guard.reason, guard.next_review_at = RETRYABLE, str(result.get("reason", "provider_unavailable"))[:64], u256(now + REVIEW_COOLDOWN)
+            if int(guard.infrastructure_grace_used) < MAX_INFRASTRUCTURE_GRACE:
+                remaining = MAX_INFRASTRUCTURE_GRACE - int(guard.infrastructure_grace_used)
+                extension = min(REVIEW_COOLDOWN, remaining)
+                guard.review_deadline = u256(int(guard.review_deadline) + extension)
+                guard.infrastructure_grace_used = u256(int(guard.infrastructure_grace_used) + extension)
 
     def _settle(self, guard: Guard, recipient: Address, settlement: str) -> None:
         amount = guard.deposit

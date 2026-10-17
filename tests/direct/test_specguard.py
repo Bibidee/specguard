@@ -84,7 +84,7 @@ def test_create_accept_submit_persists_commitments(direct_vm, direct_deploy, dir
     assert row.beneficiary.as_hex.lower() == address(direct_bob).lower()
     assert row.consumer.as_hex.lower() == address(direct_charlie).lower()
     assert int(row.deposit) == 10**15
-    assert contract.get_info()["version"] == "0.2.0"
+    assert contract.get_info()["version"] == "0.2.1"
 
 
 @pytest.mark.parametrize("field,value", [
@@ -218,12 +218,14 @@ def test_semantic_rejection_blocks_and_refunds(direct_vm, direct_deploy, direct_
 
 def test_malformed_output_fails_closed(direct_vm, direct_deploy, direct_alice, direct_bob, direct_charlie):
     contract = active_contract(direct_vm, direct_deploy, direct_alice, direct_bob, direct_charlie)
+    original_deadline = int(contract.get_guard("SG-001").review_deadline)
     wire_mocks(direct_vm, {"bad": "shape"})
     direct_vm.sender = direct_alice
     contract.review("SG-001")
     row = contract.get_guard("SG-001")
     assert row.status == "retryable"
     assert int(row.deposit) == 10**15
+    assert int(row.review_deadline) == original_deadline + 900
 
 
 def test_hash_mismatch_never_approves(direct_vm, direct_deploy, direct_alice, direct_bob, direct_charlie):

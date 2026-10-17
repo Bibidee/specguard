@@ -116,7 +116,8 @@
         "review_count": "int",
         "next_review_at": "int",
         "consumer_settle_after": "int",
-        "spec_mirror_url": "string"
+        "spec_mirror_url": "string",
+        "infrastructure_grace_used": "int"
       }
     },
     "get_info": {
