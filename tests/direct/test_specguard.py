@@ -3,6 +3,7 @@ import json
 from datetime import datetime, timezone
 
 import pytest
+import sys
 
 
 CONTRACT = "contracts/specguard.py"
@@ -84,7 +85,7 @@ def test_create_accept_submit_persists_commitments(direct_vm, direct_deploy, dir
     assert row.beneficiary.as_hex.lower() == address(direct_bob).lower()
     assert row.consumer.as_hex.lower() == address(direct_charlie).lower()
     assert int(row.deposit) == 10**15
-    assert contract.get_info()["version"] == "0.1.1"
+    assert contract.get_info()["version"] == "0.2.2"
 
 
 @pytest.mark.parametrize("field,value", [
@@ -127,6 +128,81 @@ def test_approved_review_and_designated_consumer_settlement(direct_vm, direct_de
     assert int(row.settled_amount) == 10**15
 
 
+def test_beneficiary_can_recover_approved_escrow_after_consumer_timeout(direct_vm, direct_deploy, direct_alice, direct_bob, direct_charlie):
+    contract = active_contract(direct_vm, direct_deploy, direct_alice, direct_bob, direct_charlie)
+    wire_mocks(direct_vm)
+    direct_vm.sender = direct_alice
+    contract.review("SG-001")
+    with direct_vm.expect_revert():
+        direct_vm.sender = direct_bob
+        contract.settle_after_consumer_timeout("SG-001")
+    row = contract.get_guard("SG-001")
+    direct_vm._datetime = datetime.fromtimestamp(int(row.consumer_settle_after) + 1, timezone.utc).isoformat().replace("+00:00", "Z")
+    direct_vm.sender = direct_bob
+    contract.settle_after_consumer_timeout("SG-001")
+    assert contract.get_guard("SG-001").status == "paid_beneficiary"
+
+
+def test_hash_bound_beneficiary_mirror_only_handles_primary_outage(direct_vm, direct_deploy, direct_alice, direct_bob, direct_charlie):
+    contract = deploy(direct_vm, direct_deploy, direct_alice)
+    create(contract, direct_vm, direct_alice, direct_bob, direct_charlie)
+    direct_vm.sender = direct_bob
+    contract.accept_guard("SG-001")
+    contract.set_spec_mirror("SG-001", "https://mirror.example.edu/spec.txt")
+    submit(contract, direct_vm, direct_bob)
+    direct_vm.mock_web(r"spec\.example\.org/contract\.txt", {"status": 503, "body": b"outage"})
+    direct_vm.mock_web(r"mirror\.example\.edu/spec\.txt", {"status": 200, "body": SPEC})
+    direct_vm.mock_web(r"build\.example\.net/result\.txt", {"status": 200, "body": IMPLEMENTATION})
+    direct_vm.mock_web(r"evidence\.example\.com/proof\.txt", {"status": 200, "body": EVIDENCE})
+    direct_vm.mock_llm(r"Independently assess a specification-conformance escrow", json.dumps({"spec_match": "yes", "evidence_support": "yes", "risk": "no", "confidence": 92, "rationale": "Mirror bytes exactly match the committed specification."}))
+    direct_vm.sender = direct_alice
+    contract.review("SG-001")
+    assert contract.get_guard("SG-001").status == "approved"
+
+
+def test_primary_specification_substitution_uses_matching_registered_mirror(direct_vm, direct_deploy, direct_alice, direct_bob, direct_charlie):
+    contract = deploy(direct_vm, direct_deploy, direct_alice)
+    create(contract, direct_vm, direct_alice, direct_bob, direct_charlie)
+    direct_vm.sender = direct_bob
+    contract.accept_guard("SG-001")
+    contract.set_spec_mirror("SG-001", "https://mirror.example.edu/spec.txt")
+    submit(contract, direct_vm, direct_bob)
+    wire_mocks(direct_vm)
+    direct_vm.mock_web(r"spec\.example\.org/contract\.txt", {"status": 200, "body": b"substituted specification"})
+    direct_vm.mock_web(r"mirror\.example\.edu/spec\.txt", {"status": 200, "body": SPEC})
+    direct_vm.sender = direct_alice
+    contract.review("SG-001")
+    assert contract.get_guard("SG-001").status == "approved"
+
+
+def test_unverified_primary_and_mirror_stay_retryable_not_sponsor_refundable(direct_vm, direct_deploy, direct_alice, direct_bob, direct_charlie):
+    contract = deploy(direct_vm, direct_deploy, direct_alice)
+    create(contract, direct_vm, direct_alice, direct_bob, direct_charlie)
+    direct_vm.sender = direct_bob
+    contract.accept_guard("SG-001")
+    contract.set_spec_mirror("SG-001", "https://mirror.example.edu/spec.txt")
+    submit(contract, direct_vm, direct_bob)
+    direct_vm.mock_web(r"spec\.example\.org/contract\.txt", {"status": 200, "body": b"substituted"})
+    direct_vm.mock_web(r"mirror\.example\.edu/spec\.txt", {"status": 503, "body": b"outage"})
+    direct_vm.mock_web(r"build\.example\.net/result\.txt", {"status": 200, "body": IMPLEMENTATION})
+    direct_vm.mock_web(r"evidence\.example\.com/proof\.txt", {"status": 200, "body": EVIDENCE})
+    direct_vm.mock_llm(r"Independently assess a specification-conformance escrow", json.dumps({"spec_match": "yes", "evidence_support": "yes", "risk": "no", "confidence": 92, "rationale": "This response must not be used when the specification is unavailable."}))
+    direct_vm.sender = direct_alice
+    contract.review("SG-001")
+    assert contract.get_guard("SG-001").status == "retryable"
+
+
+def test_terminal_settlement_releases_active_case_slot_once(direct_vm, direct_deploy, direct_alice, direct_bob, direct_charlie):
+    contract = deploy(direct_vm, direct_deploy, direct_alice)
+    for index in range(64):
+        create(contract, direct_vm, direct_alice, direct_bob, direct_charlie, guard_id=f"SG-{index:03}")
+    with direct_vm.expect_revert():
+        create(contract, direct_vm, direct_alice, direct_bob, direct_charlie, guard_id="SG-OVERFLOW")
+    direct_vm.sender = direct_alice
+    contract.cancel_unaccepted("SG-000")
+    create(contract, direct_vm, direct_alice, direct_bob, direct_charlie, guard_id="SG-REUSED")
+
+
 @pytest.mark.parametrize("answer", [
     {"spec_match": "no", "evidence_support": "yes", "risk": "no", "confidence": 92, "rationale": "The implementation misses the mandatory test statement."},
     {"spec_match": "yes", "evidence_support": "yes", "risk": "yes", "confidence": 92, "rationale": "The evidence contains a material contradiction."},
@@ -143,12 +219,54 @@ def test_semantic_rejection_blocks_and_refunds(direct_vm, direct_deploy, direct_
 
 def test_malformed_output_fails_closed(direct_vm, direct_deploy, direct_alice, direct_bob, direct_charlie):
     contract = active_contract(direct_vm, direct_deploy, direct_alice, direct_bob, direct_charlie)
+    original_deadline = int(contract.get_guard("SG-001").review_deadline)
     wire_mocks(direct_vm, {"bad": "shape"})
     direct_vm.sender = direct_alice
     contract.review("SG-001")
     row = contract.get_guard("SG-001")
     assert row.status == "retryable"
     assert int(row.deposit) == 10**15
+    assert int(row.review_deadline) == original_deadline + 900
+
+
+def test_consensus_unavailable_near_deadline_is_retryable_but_has_no_grace(direct_vm, direct_deploy, direct_alice, direct_bob, direct_charlie, monkeypatch):
+    """Lock in the v0.2.2 bounded-timeout policy without changing deployed code.
+
+    Direct Mode normally returns the leader result, so a non-dictionary
+    consensus result requires explicit VM-boundary fault injection. The public
+    ``review`` and ``expire`` calls still exercise the deployed contract's
+    state machine. Unlike an infrastructure result, this path gets cooldown
+    only: it cannot approve or extend the deadline.
+    """
+    contract = active_contract(direct_vm, direct_deploy, direct_alice, direct_bob, direct_charlie)
+    row = contract.get_guard("SG-001")
+    deadline = int(row.review_deadline)
+    near_deadline = deadline - 1
+    direct_vm._datetime = datetime.fromtimestamp(near_deadline, timezone.utc).isoformat().replace("+00:00", "Z")
+    monkeypatch.setattr(sys.modules["genlayer.gl.vm"], "run_nondet_unsafe", lambda leader, validator: None)
+    direct_vm.sender = direct_alice
+    contract.review("SG-001")
+    row = contract.get_guard("SG-001")
+    assert row.status == "retryable"
+    assert row.reason == "consensus_unavailable"
+    assert int(row.review_deadline) == deadline
+    assert int(row.next_review_at) == near_deadline + 900
+    assert int(row.deposit) == 10**15
+    direct_vm._datetime = datetime.fromtimestamp(deadline, timezone.utc).isoformat().replace("+00:00", "Z")
+    contract.expire("SG-001")
+    row = contract.get_guard("SG-001")
+    assert row.status == "refunded_sponsor"
+    assert int(row.deposit) == 0
+
+
+def test_validator_disagreement_rejects_approval_equivalence(direct_vm, direct_deploy, direct_alice, direct_bob, direct_charlie):
+    contract = active_contract(direct_vm, direct_deploy, direct_alice, direct_bob, direct_charlie)
+    wire_mocks(direct_vm)
+    direct_vm.sender = direct_alice
+    contract.review("SG-001")
+    direct_vm.clear_mocks()
+    wire_mocks(direct_vm, {"spec_match": "no", "evidence_support": "yes", "risk": "no", "confidence": 92, "rationale": "The implementation omits the required statement."})
+    assert direct_vm.run_validator() is False
 
 
 def test_hash_mismatch_never_approves(direct_vm, direct_deploy, direct_alice, direct_bob, direct_charlie):
@@ -169,3 +287,39 @@ def test_timeout_and_unaccepted_cancellation_refund(direct_vm, direct_deploy, di
     direct_vm._datetime = datetime.fromtimestamp(chain_now(direct_vm) + 7201, timezone.utc).isoformat().replace("+00:00", "Z")
     contract.expire("SG-002")
     assert contract.get_guard("SG-002").status == "refunded_sponsor"
+
+
+def test_infrastructure_grace_delays_then_bounds_timeout_refund(direct_vm, direct_deploy, direct_alice, direct_bob, direct_charlie):
+    contract = active_contract(direct_vm, direct_deploy, direct_alice, direct_bob, direct_charlie)
+    initial_deadline = int(contract.get_guard("SG-001").review_deadline)
+    wire_mocks(direct_vm, {"malformed": "output"})
+    direct_vm.sender = direct_alice
+    contract.review("SG-001")
+    row = contract.get_guard("SG-001")
+    assert row.status == "retryable"
+    assert int(row.review_deadline) == initial_deadline + 900
+    direct_vm._datetime = datetime.fromtimestamp(initial_deadline + 1, timezone.utc).isoformat().replace("+00:00", "Z")
+    with direct_vm.expect_revert():
+        contract.expire("SG-001")
+    direct_vm._datetime = datetime.fromtimestamp(int(row.review_deadline) + 1, timezone.utc).isoformat().replace("+00:00", "Z")
+    contract.expire("SG-001")
+    assert contract.get_guard("SG-001").status == "refunded_sponsor"
+    with direct_vm.expect_revert():
+        contract.expire("SG-001")
+
+
+def test_terminal_settlement_is_one_shot_and_roles_cannot_redirect(direct_vm, direct_deploy, direct_alice, direct_bob, direct_charlie):
+    contract = active_contract(direct_vm, direct_deploy, direct_alice, direct_bob, direct_charlie)
+    wire_mocks(direct_vm)
+    direct_vm.sender = direct_alice
+    contract.review("SG-001")
+    direct_vm.sender = direct_charlie
+    contract.settle_approved("SG-001")
+    row = contract.get_guard("SG-001")
+    assert row.status == "paid_beneficiary"
+    assert int(row.deposit) == 0 and int(row.settled_amount) == 10**15
+    direct_vm.sender = direct_alice
+    with direct_vm.expect_revert():
+        contract.refund_blocked("SG-001")
+    with direct_vm.expect_revert():
+        contract.settle_approved("SG-001")

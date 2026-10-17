@@ -16,8 +16,9 @@ approval only after evidence has been verified.
 3. Independent GenLayer validators fetch the exact committed bytes, verify the
    digests before decoding, and assess conformance.
 4. A bounded consensus result becomes `approved`, `blocked`, or `retryable`.
-5. An approved escrow can be settled only by the designated consumer; blocked,
-   cancelled, and timed-out work has a deterministic sponsor-recovery path.
+5. The designated consumer has a seven-day exclusive approved-settlement
+   period. If it disappears, only the beneficiary can settle after that period;
+   the sponsor can never reclaim an approved guard.
 
 SpecGuard is an escrow primitive, not a deployment platform. It does not prove
 real-world identity, make external systems execute a change, authenticate an
@@ -47,6 +48,13 @@ HTTPS publisher, or guarantee an LLM judgment is correct.
 `submitted <-> retryable`, followed by `expire -> refunded_sponsor` if the
 review deadline passes. A sponsor may cancel only before beneficiary acceptance.
 
+v0.2.2 also lets the beneficiary register one HTTPS specification mirror while
+the guard is active. It is used whenever the sponsor-controlled primary cannot
+verify against the original SHA-256, including a substituted response. Neither
+source can authorize a review unless its bytes match that commitment; if both
+cannot verify, the guard remains retryable rather than becoming an automatic
+sponsor refund.
+
 ## Development
 
 Only `contracts/specguard.py` is a deployable contract source. Test modules are
@@ -59,17 +67,24 @@ python -m pytest tests -q
 python scripts/preflight.py
 ```
 
-## StudioNet release evidence
+## StudioNet release evidence — v0.2.2
 
-The canonical v0.1.1 deployment is
-[`0x70968dd0354236e3Eae6eb6eb9Cd3C3C01A4D0f0`](https://explorer-studio.genlayer.com/address/0x70968dd0354236e3Eae6eb6eb9Cd3C3C01A4D0f0).
-Its exact source was retrieved through `gen_getContractCode` and matched this
-repository byte-for-byte (SHA-256
-`7ca2ef1c1d1d166c6672da8b518b3ae8fb71d4932e9cf4532a18ac6ce2df433b`).
+The canonical contract is
+[`0xD57061E923F6E8BD0BCB6a615551388D61bBE8aa`](https://explorer-studio.genlayer.com/address/0xD57061E923F6E8BD0BCB6a615551388D61bBE8aa),
+deployed from source commit `f666b362a368906af151bb93822f3c55879b0f17`.
+The deployed source was retrieved through `gen_getContractCode`: local and
+deployed source were each 24,797 bytes, with identical SHA-256
+`54087ad83eb2e639193ae09278eb503b60592b92c23584266d168ebc2d67ed8c`.
 
-One live guard completed the full lifecycle: funded, accepted, submitted,
-approved at confidence 92, and paid to the beneficiary. The 0.001 GEN child
-transfer finalized with `value_credited: true`; the final guard ledger records
-`deposit: 0` and `settled_amount: 1000000000000000`. Full receipts, immutable
-artifact commitments, and the historical v0.1.0 incident are in
+A live guard completed `funded -> active -> submitted -> approved ->
+paid_beneficiary`. The review finalized `MAJORITY_AGREE` with GenVM `SUCCESS`,
+confidence 93, and the designated consumer settled the 0.001 GEN escrow. Its
+child transfer also finalized with `value_credited: true`; the canonical final
+record has `deposit: 0` and `settled_amount: 1000000000000000`. Full receipts,
+immutable artifact commitments, and superseded deployment history are in
 [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md).
+
+Historical transaction scripts are intentionally disabled because they can
+access a locally unlocked signer and submit writes. The remaining
+`scripts/verify_source_parity.mjs` utility is read-only: it verifies finalized
+deployment status before retrieving and comparing source bytes.

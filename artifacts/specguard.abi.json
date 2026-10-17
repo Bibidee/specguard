@@ -114,7 +114,10 @@
         "deposit": "int",
         "settled_amount": "int",
         "review_count": "int",
-        "next_review_at": "int"
+        "next_review_at": "int",
+        "consumer_settle_after": "int",
+        "spec_mirror_url": "string",
+        "infrastructure_grace_used": "int"
       }
     },
     "get_info": {
@@ -136,6 +139,34 @@
       "payable": false
     },
     "review": {
+      "params": [
+        [
+          "guard_id",
+          "string"
+        ]
+      ],
+      "kwparams": {},
+      "readonly": false,
+      "ret": "null",
+      "payable": false
+    },
+    "set_spec_mirror": {
+      "params": [
+        [
+          "guard_id",
+          "string"
+        ],
+        [
+          "mirror_url",
+          "string"
+        ]
+      ],
+      "kwparams": {},
+      "readonly": false,
+      "ret": "null",
+      "payable": false
+    },
+    "settle_after_consumer_timeout": {
       "params": [
         [
           "guard_id",
