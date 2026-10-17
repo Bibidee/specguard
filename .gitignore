@@ -1,0 +1,6 @@
+.venv/
+.pytest_cache/
+.gltest-artifacts/
+.genvmroot/
+__pycache__/
+*.pyc

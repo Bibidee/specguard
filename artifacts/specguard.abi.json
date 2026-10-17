@@ -1,0 +1,199 @@
+{
+  "ctor": {
+    "params": [],
+    "kwparams": {}
+  },
+  "methods": {
+    "accept_guard": {
+      "params": [
+        [
+          "guard_id",
+          "string"
+        ]
+      ],
+      "kwparams": {},
+      "readonly": false,
+      "ret": "null",
+      "payable": false
+    },
+    "cancel_unaccepted": {
+      "params": [
+        [
+          "guard_id",
+          "string"
+        ]
+      ],
+      "kwparams": {},
+      "readonly": false,
+      "ret": "null",
+      "payable": false
+    },
+    "create_guard": {
+      "params": [
+        [
+          "guard_id",
+          "string"
+        ],
+        [
+          "beneficiary",
+          "string"
+        ],
+        [
+          "consumer",
+          "string"
+        ],
+        [
+          "brief",
+          "string"
+        ],
+        [
+          "spec_url",
+          "string"
+        ],
+        [
+          "spec_hash",
+          "string"
+        ],
+        [
+          "deliver_by",
+          "int"
+        ],
+        [
+          "review_window",
+          "int"
+        ]
+      ],
+      "kwparams": {},
+      "readonly": false,
+      "ret": "null",
+      "payable": true
+    },
+    "expire": {
+      "params": [
+        [
+          "guard_id",
+          "string"
+        ]
+      ],
+      "kwparams": {},
+      "readonly": false,
+      "ret": "null",
+      "payable": false
+    },
+    "get_guard": {
+      "params": [
+        [
+          "guard_id",
+          "string"
+        ]
+      ],
+      "kwparams": {},
+      "readonly": true,
+      "ret": {
+        "guard_id": "string",
+        "sponsor": "address",
+        "beneficiary": "address",
+        "consumer": "address",
+        "brief": "string",
+        "spec_url": "string",
+        "spec_hash": "string",
+        "created_at": "int",
+        "deliver_by": "int",
+        "review_window": "int",
+        "review_deadline": "int",
+        "artifact_kind": "string",
+        "implementation_url": "string",
+        "implementation_hash": "string",
+        "evidence_url": "string",
+        "evidence_hash": "string",
+        "submission_summary": "string",
+        "status": "string",
+        "confidence": "int",
+        "rationale": "string",
+        "reason": "string",
+        "deposit": "int",
+        "settled_amount": "int",
+        "review_count": "int",
+        "next_review_at": "int"
+      }
+    },
+    "get_info": {
+      "params": [],
+      "kwparams": {},
+      "readonly": true,
+      "ret": "dict"
+    },
+    "refund_blocked": {
+      "params": [
+        [
+          "guard_id",
+          "string"
+        ]
+      ],
+      "kwparams": {},
+      "readonly": false,
+      "ret": "null",
+      "payable": false
+    },
+    "review": {
+      "params": [
+        [
+          "guard_id",
+          "string"
+        ]
+      ],
+      "kwparams": {},
+      "readonly": false,
+      "ret": "null",
+      "payable": false
+    },
+    "settle_approved": {
+      "params": [
+        [
+          "guard_id",
+          "string"
+        ]
+      ],
+      "kwparams": {},
+      "readonly": false,
+      "ret": "null",
+      "payable": false
+    },
+    "submit_implementation": {
+      "params": [
+        [
+          "guard_id",
+          "string"
+        ],
+        [
+          "artifact_kind",
+          "string"
+        ],
+        [
+          "implementation_url",
+          "string"
+        ],
+        [
+          "implementation_hash",
+          "string"
+        ],
+        [
+          "evidence_url",
+          "string"
+        ],
+        [
+          "evidence_hash",
+          "string"
+        ],
+        [
+          "summary",
+          "string"
+        ]
+      ],
+      "kwparams": {},
+      "readonly": false,
+      "ret": "null",
+      "payable": false
+    }
+  }
+}
