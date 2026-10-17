@@ -49,9 +49,11 @@ HTTPS publisher, or guarantee an LLM judgment is correct.
 review deadline passes. A sponsor may cancel only before beneficiary acceptance.
 
 v0.2.0 also lets the beneficiary register one HTTPS specification mirror while
-the guard is active. It is used only when the sponsor URL is unavailable and
-must hash to the original committed specification; a hash mismatch remains a
-blocked integrity failure.
+the guard is active. It is used whenever the sponsor-controlled primary cannot
+verify against the original SHA-256, including a substituted response. Neither
+source can authorize a review unless its bytes match that commitment; if both
+cannot verify, the guard remains retryable rather than becoming an automatic
+sponsor refund.
 
 ## Development
 

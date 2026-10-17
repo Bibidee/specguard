@@ -25,9 +25,11 @@ deadline refund.
 
 The sponsor URL is a hash commitment, not an availability guarantee. During
 the active state the beneficiary may register one HTTPS mirror. It is consulted
-only after the primary source is unavailable, and only bytes matching the
-original SHA-256 are accepted. A primary hash mismatch remains an integrity
-failure; mirrors cannot mask substituted content.
+when the primary source is unavailable or fails its hash commitment, and only
+bytes matching the original SHA-256 are accepted. A changed sponsor-hosted
+response cannot by itself force a blocked result or sponsor refund: an exact
+registered mirror may supply the agreed bytes. If neither source verifies, the
+outcome is retryable and non-authorizing.
 
 The consumer has a bounded exclusive right to settle an approved guard. After
 seven days the beneficiary may settle the already-approved escrow. The sponsor

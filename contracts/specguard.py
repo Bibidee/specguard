@@ -209,13 +209,21 @@ def _fetch(url: str, expected_hash: str, max_bytes: int) -> bytes:
 
 
 def _fetch_spec(snapshot: dict) -> bytes:
-    """Only use a beneficiary mirror for a temporary source outage, never a mismatch."""
+    """Use a pre-registered hash-bound mirror when the primary cannot verify.
+
+    The primary host is sponsor-selected and can be changed after acceptance.
+    Its failure, including a hash mismatch, is therefore not itself a basis for
+    sponsor recovery. Only exact bytes from either committed source proceed.
+    """
     try:
         return _fetch(snapshot["spec_url"], snapshot["spec_hash"], MAX_TEXT_BYTES)
-    except ValueError as error:
-        if str(error) not in ("fetch_unavailable", "invalid_http_response") or not snapshot["spec_mirror_url"]:
-            raise
+    except ValueError:
+        if not snapshot["spec_mirror_url"]:
+            raise ValueError("specification_unverified")
+    try:
         return _fetch(snapshot["spec_mirror_url"], snapshot["spec_hash"], MAX_TEXT_BYTES)
+    except ValueError:
+        raise ValueError("specification_unverified")
 
 
 def _normalize(raw) -> dict:

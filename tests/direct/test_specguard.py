@@ -159,6 +159,49 @@ def test_hash_bound_beneficiary_mirror_only_handles_primary_outage(direct_vm, di
     assert contract.get_guard("SG-001").status == "approved"
 
 
+def test_primary_specification_substitution_uses_matching_registered_mirror(direct_vm, direct_deploy, direct_alice, direct_bob, direct_charlie):
+    contract = deploy(direct_vm, direct_deploy, direct_alice)
+    create(contract, direct_vm, direct_alice, direct_bob, direct_charlie)
+    direct_vm.sender = direct_bob
+    contract.accept_guard("SG-001")
+    contract.set_spec_mirror("SG-001", "https://mirror.example.edu/spec.txt")
+    submit(contract, direct_vm, direct_bob)
+    wire_mocks(direct_vm)
+    direct_vm.mock_web(r"spec\.example\.org/contract\.txt", {"status": 200, "body": b"substituted specification"})
+    direct_vm.mock_web(r"mirror\.example\.edu/spec\.txt", {"status": 200, "body": SPEC})
+    direct_vm.sender = direct_alice
+    contract.review("SG-001")
+    assert contract.get_guard("SG-001").status == "approved"
+
+
+def test_unverified_primary_and_mirror_stay_retryable_not_sponsor_refundable(direct_vm, direct_deploy, direct_alice, direct_bob, direct_charlie):
+    contract = deploy(direct_vm, direct_deploy, direct_alice)
+    create(contract, direct_vm, direct_alice, direct_bob, direct_charlie)
+    direct_vm.sender = direct_bob
+    contract.accept_guard("SG-001")
+    contract.set_spec_mirror("SG-001", "https://mirror.example.edu/spec.txt")
+    submit(contract, direct_vm, direct_bob)
+    direct_vm.mock_web(r"spec\.example\.org/contract\.txt", {"status": 200, "body": b"substituted"})
+    direct_vm.mock_web(r"mirror\.example\.edu/spec\.txt", {"status": 503, "body": b"outage"})
+    direct_vm.mock_web(r"build\.example\.net/result\.txt", {"status": 200, "body": IMPLEMENTATION})
+    direct_vm.mock_web(r"evidence\.example\.com/proof\.txt", {"status": 200, "body": EVIDENCE})
+    direct_vm.mock_llm(r"Independently assess a specification-conformance escrow", json.dumps({"spec_match": "yes", "evidence_support": "yes", "risk": "no", "confidence": 92, "rationale": "This response must not be used when the specification is unavailable."}))
+    direct_vm.sender = direct_alice
+    contract.review("SG-001")
+    assert contract.get_guard("SG-001").status == "retryable"
+
+
+def test_terminal_settlement_releases_active_case_slot_once(direct_vm, direct_deploy, direct_alice, direct_bob, direct_charlie):
+    contract = deploy(direct_vm, direct_deploy, direct_alice)
+    for index in range(64):
+        create(contract, direct_vm, direct_alice, direct_bob, direct_charlie, guard_id=f"SG-{index:03}")
+    with direct_vm.expect_revert():
+        create(contract, direct_vm, direct_alice, direct_bob, direct_charlie, guard_id="SG-OVERFLOW")
+    direct_vm.sender = direct_alice
+    contract.cancel_unaccepted("SG-000")
+    create(contract, direct_vm, direct_alice, direct_bob, direct_charlie, guard_id="SG-REUSED")
+
+
 @pytest.mark.parametrize("answer", [
     {"spec_match": "no", "evidence_support": "yes", "risk": "no", "confidence": 92, "rationale": "The implementation misses the mandatory test statement."},
     {"spec_match": "yes", "evidence_support": "yes", "risk": "yes", "confidence": 92, "rationale": "The evidence contains a material contradiction."},
