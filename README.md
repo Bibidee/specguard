@@ -67,27 +67,19 @@ python -m pytest tests -q
 python scripts/preflight.py
 ```
 
-## StudioNet release evidence
+## StudioNet release evidence — v0.2.2
 
-The canonical v0.1.1 deployment is
-[`0x70968dd0354236e3Eae6eb6eb9Cd3C3C01A4D0f0`](https://explorer-studio.genlayer.com/address/0x70968dd0354236e3Eae6eb6eb9Cd3C3C01A4D0f0).
-Its exact source was retrieved through `gen_getContractCode` and matched this
-repository byte-for-byte (SHA-256
-`7ca2ef1c1d1d166c6672da8b518b3ae8fb71d4932e9cf4532a18ac6ce2df433b`).
+The canonical contract is
+[`0xD57061E923F6E8BD0BCB6a615551388D61bBE8aa`](https://explorer-studio.genlayer.com/address/0xD57061E923F6E8BD0BCB6a615551388D61bBE8aa),
+deployed from source commit `f666b362a368906af151bb93822f3c55879b0f17`.
+The deployed source was retrieved through `gen_getContractCode`: local and
+deployed source were each 24,797 bytes, with identical SHA-256
+`54087ad83eb2e639193ae09278eb503b60592b92c23584266d168ebc2d67ed8c`.
 
-## v0.2.1 remediation candidate — not deployed
-
-The audited v0.2.1 branch adds active-case accounting, a beneficiary-only
-consumer-disappearance settlement fallback, and a hash-bound specification
-mirror. It also grants up to seven days of bounded review-deadline grace for
-infrastructure-only outcomes. It is a new candidate and is not represented by the v0.1.1 address.
-Native transfer receipt credit remains network-observable rather than
-atomically provable by contract storage; the contract debits its ledger before
-dispatch and never retries a dispatched transfer, preventing duplicate payout.
-
-One live guard completed the full lifecycle: funded, accepted, submitted,
-approved at confidence 92, and paid to the beneficiary. The 0.001 GEN child
-transfer finalized with `value_credited: true`; the final guard ledger records
-`deposit: 0` and `settled_amount: 1000000000000000`. Full receipts, immutable
-artifact commitments, and the historical v0.1.0 incident are in
+A live guard completed `funded -> active -> submitted -> approved ->
+paid_beneficiary`. The review finalized `MAJORITY_AGREE` with GenVM `SUCCESS`,
+confidence 93, and the designated consumer settled the 0.001 GEN escrow. Its
+child transfer also finalized with `value_credited: true`; the canonical final
+record has `deposit: 0` and `settled_amount: 1000000000000000`. Full receipts,
+immutable artifact commitments, and superseded deployment history are in
 [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md).
