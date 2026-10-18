@@ -113,7 +113,10 @@ declared authorities, models, or providers are truthful or available.
   to the local source byte-for-byte.
 - Contract SHA-256: `b40b6a205b8cc8683481d0e3d8086f6cb6c6f566163ed3ec773eca7dd1c577c2`
 - Release checks: **49 tests passed**, GenVM lint PASS, ABI/schema PASS, and
-  preflight PASS. Main CI run [39158223106](https://github.com/Bibidee/specguard/actions/runs/39158223106) passed on this merged commit.
+  preflight PASS. The source merge was checked by run
+  [39158223106](https://github.com/Bibidee/specguard/actions/runs/39158223106);
+  the final live-evidence documentation merge was checked by main run
+  [39166921946](https://github.com/Bibidee/specguard/actions/runs/39166921946).
 - `get_info()`: `SpecGuard`, version `0.4.1`, minimum confidence `75`, minimum
   deposit `1000000000000000` wei, maximum text bytes `16000`, maximum image
   bytes `2000000`, maximum guards per sponsor `64`, maximum challenges `3`.
