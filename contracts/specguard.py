@@ -1,4 +1,4 @@
-# v0.3.0
+# v0.4.0
 # { "Depends": "py-genlayer:1jb45aa8ynh2a9c9xn3b7qqh8sm5q93hwfp7jqmwsfhh8jpz09h6" }
 """SpecGuard: hash-bound specification conformance with GEN escrow.
 
@@ -20,7 +20,7 @@ from urllib.parse import urlsplit
 from genlayer import Address, TreeMap, allow_storage, gl, u256
 
 
-VERSION = "0.3.0"
+VERSION = "0.4.0"
 EXPECTED = "[EXPECTED]"
 
 FUNDED = "funded"
@@ -35,6 +35,17 @@ BLOCKED = "blocked"
 PAID_BENEFICIARY = "paid_beneficiary"
 REFUNDED_SPONSOR = "refunded_sponsor"
 CANCELLED = "cancelled"
+
+# Challenge records are bounded and append-only.  A challenge is not a
+# replacement for the original decision: it must be independently reviewed
+# and substantiated before it can change the economic outcome.
+CHALLENGE_SUBMITTED = "submitted"
+CHALLENGE_UNDER_REVIEW = "under_review"
+CHALLENGE_SUBSTANTIATED = "substantiated"
+CHALLENGE_REJECTED = "rejected"
+CHALLENGE_INVALID = "invalid"
+CHALLENGE_UNRESOLVED = "unresolved"
+CHALLENGE_FINALIZED = "finalized"
 
 MAX_ID = 96
 MAX_BRIEF = 1200
@@ -60,6 +71,7 @@ CONSUMER_SETTLEMENT_WINDOW = 7 * 24 * 3600
 MAX_INFRASTRUCTURE_GRACE = 7 * 24 * 3600
 MIN_CHALLENGE_WINDOW = 3600
 MAX_CHALLENGE_WINDOW = 7 * 24 * 3600
+MAX_CHALLENGES = 3
 
 DECISION_KEYS = ("criteria", "confidence", "rationale")
 CRITERION_STATUS = ("pass", "fail", "unclear")
@@ -109,6 +121,10 @@ class Guard:
     challenge_summary: str
     challenge_next_review_at: u256
     challenge_grace_used: u256
+    # Canonical JSON list of bounded challenge records.  The legacy singular
+    # challenge fields remain populated for read compatibility, while all
+    # settlement decisions use this append-only record set.
+    challenge_records: str
 
 
 @gl.evm.contract_interface
@@ -186,6 +202,37 @@ def _canonical(value) -> str:
     return json.dumps(value, ensure_ascii=True, sort_keys=True, separators=(",", ":"))
 
 
+def _challenge_rows(raw: str) -> list:
+    try:
+        value = json.loads(str(raw or "[]"))
+    except Exception:
+        raise gl.vm.UserError(f"{EXPECTED} Invalid challenge records")
+    if not isinstance(value, list) or len(value) > MAX_CHALLENGES:
+        raise gl.vm.UserError(f"{EXPECTED} Invalid challenge records")
+    return value
+
+
+def _challenge_manifest_ids(raw: str) -> set:
+    try:
+        value = json.loads(str(raw or '{"sources":[]}'))
+    except Exception:
+        raise gl.vm.UserError(f"{EXPECTED} Invalid challenge records")
+    if not isinstance(value, dict) or not isinstance(value.get("sources"), list):
+        raise gl.vm.UserError(f"{EXPECTED} Invalid challenge records")
+    return {str(item.get("id")) for item in value["sources"] if isinstance(item, dict)}
+
+
+def _manifest_commitments(raw: str) -> set:
+    try:
+        value = json.loads(str(raw or '{"sources":[]}'))
+    except Exception:
+        raise gl.vm.UserError(f"{EXPECTED} Invalid challenge records")
+    if not isinstance(value, dict) or not isinstance(value.get("sources"), list):
+        raise gl.vm.UserError(f"{EXPECTED} Invalid challenge records")
+    return {(str(item.get("url")), str(item.get("hash")))
+            for item in value["sources"] if isinstance(item, dict)}
+
+
 def _policy(raw: str) -> dict:
     """Validate the immutable acceptance policy committed at funding.
 
@@ -196,15 +243,24 @@ def _policy(raw: str) -> dict:
         value = json.loads(str(raw))
     except Exception:
         raise gl.vm.UserError(f"{EXPECTED} Invalid acceptance policy")
-    if not isinstance(value, dict) or set(value) != {"criteria", "challenge_window"}:
+    allowed = {"criteria", "challenge_window", "provenance_requirement"}
+    if not isinstance(value, dict) or not set(value).issubset(allowed) or not {"criteria", "challenge_window"}.issubset(value):
         raise gl.vm.UserError(f"{EXPECTED} Invalid acceptance policy")
     criteria = value.get("criteria")
     window = value.get("challenge_window")
+    provenance_requirement = value.get("provenance_requirement", "declared")
+    # The current GenVM API exposes no cryptographic publisher-attestation
+    # primitive.  Refuse a policy that claims authenticated provenance rather
+    # than silently treating a caller-declared label as an identity proof.
+    if provenance_requirement not in ("declared", "authenticated"):
+        raise gl.vm.UserError(f"{EXPECTED} Invalid provenance requirement")
+    if provenance_requirement == "authenticated":
+        raise gl.vm.UserError(f"{EXPECTED} Authenticated provenance is unsupported")
     if (not isinstance(criteria, list) or not criteria or len(criteria) > MAX_CRITERIA
             or not isinstance(window, int) or isinstance(window, bool)
             or window < MIN_CHALLENGE_WINDOW or window > MAX_CHALLENGE_WINDOW):
         raise gl.vm.UserError(f"{EXPECTED} Invalid acceptance policy")
-    seen, normalized = set(), []
+    seen, seen_hashes, normalized = set(), set(), []
     for item in criteria:
         if not isinstance(item, dict) or set(item) != {"id", "description", "critical", "min_authorities", "satisfaction_rule"}:
             raise gl.vm.UserError(f"{EXPECTED} Invalid acceptance criterion")
@@ -218,7 +274,10 @@ def _policy(raw: str) -> dict:
         normalized.append({"id": identifier, "description": _bounded(item.get("description"), "criterion description", 500),
                            "critical": item["critical"], "min_authorities": minimum,
                            "satisfaction_rule": POLICY_RULE})
-    return {"criteria": normalized, "challenge_window": window}
+    result = {"criteria": normalized, "challenge_window": window}
+    if "provenance_requirement" in value:
+        result["provenance_requirement"] = provenance_requirement
+    return result
 
 
 def _authority(value) -> str:
@@ -228,8 +287,20 @@ def _authority(value) -> str:
     return result
 
 
+def _origin(url: str) -> str:
+    """Return the committed network origin used for corroboration counting.
+
+    Authority labels are caller-declared metadata.  Counting the normalized
+    HTTPS hostname as well prevents multiple paths or subdomains on the same
+    origin from manufacturing independence.  It is deliberately described as
+    *declared origin* rather than publisher authentication.
+    """
+    parsed = urlsplit(url)
+    return (parsed.hostname or "").lower().rstrip(".")
+
+
 def _manifest(raw: str, policy: dict, challenge: bool = False) -> dict:
-    """Bind evidence IDs to criteria and count distinct declared authorities."""
+    """Bind evidence IDs to criteria and count declared authorities/origins."""
     try:
         value = json.loads(str(raw))
     except Exception:
@@ -241,31 +312,48 @@ def _manifest(raw: str, policy: dict, challenge: bool = False) -> dict:
         raise gl.vm.UserError(f"{EXPECTED} Invalid evidence manifest")
     policy_ids = {criterion["id"] for criterion in policy["criteria"]}
     coverage = {identifier: set() for identifier in policy_ids}
-    seen, normalized = set(), []
+    authority_coverage = {identifier: set() for identifier in policy_ids}
+    seen, seen_hashes, normalized = set(), set(), []
     for item in sources:
         keys = {"id", "authority", "artifact_type", "url", "hash", "criteria", "metadata"}
-        if not isinstance(item, dict) or set(item) != keys:
+        allowed_keys = keys | {"origin", "provenance"}
+        if not isinstance(item, dict) or not set(item).issubset(allowed_keys) or not keys.issubset(item):
             raise gl.vm.UserError(f"{EXPECTED} Invalid evidence source")
         identifier = _identifier(item.get("id"), "evidence id", 32)
         authority = _authority(item.get("authority"))
         criteria = item.get("criteria")
-        if identifier in seen or item.get("artifact_type") not in SOURCE_TYPES or not isinstance(criteria, list) or not criteria:
+        digest = _hash(item.get("hash"))
+        if (identifier in seen or digest in seen_hashes or item.get("artifact_type") not in SOURCE_TYPES or not isinstance(criteria, list)
+                or not criteria or item.get("provenance", "declared") != "declared"):
             raise gl.vm.UserError(f"{EXPECTED} Invalid evidence source")
         seen.add(identifier)
+        seen_hashes.add(digest)
         bound = []
         for criterion in criteria:
             criterion = _identifier(criterion, "criterion id", 32)
             if criterion not in policy_ids or criterion in bound:
                 raise gl.vm.UserError(f"{EXPECTED} Invalid evidence criteria")
             bound.append(criterion)
-            coverage[criterion].add(authority)
+            # A caller-supplied authority string cannot create independence by
+            # itself.  Only distinct committed HTTPS origins count.
+            source_url = _url(item.get("url")) if item.get("url") else ""
+            coverage[criterion].add(_origin(source_url))
+            authority_coverage[criterion].add(authority)
+        url = _url(item.get("url"))
+        origin = _origin(url)
         normalized.append({"id": identifier, "authority": authority, "artifact_type": item["artifact_type"],
-                           "url": _url(item.get("url")), "hash": _hash(item.get("hash")), "criteria": bound,
-                           "metadata": _bounded(item.get("metadata"), "evidence metadata", MAX_METADATA)})
+                           "url": url, "origin": origin, "hash": digest, "criteria": bound,
+                           "metadata": _bounded(item.get("metadata"), "evidence metadata", MAX_METADATA),
+                           "provenance": "declared"})
     if not challenge:
         for criterion in policy["criteria"]:
-            if len(coverage[criterion["id"]]) < criterion["min_authorities"]:
+            if (len(coverage[criterion["id"]]) < criterion["min_authorities"]
+                    or len(authority_coverage[criterion["id"]]) < criterion["min_authorities"]):
                 raise gl.vm.UserError(f"{EXPECTED} Missing independent corroboration")
+    else:
+        for criterion in policy["criteria"]:
+            if not coverage[criterion["id"]]:
+                raise gl.vm.UserError(f"{EXPECTED} Challenge lacks criterion evidence")
     return {"sources": normalized}
 
 
@@ -446,6 +534,10 @@ def _observe(snapshot: dict, challenge: bool = False) -> dict:
             implementation = artifact.decode("utf-8")
         evidence, index, total = [], {}, 0
         for source in original["sources"] + extra["sources"]:
+            if source["id"] in index:
+                # Never let a challenge shadow an original commitment (or a
+                # prior challenge) in the model's evidence index.
+                raise ValueError("evidence_id_collision")
             raw = _fetch(source["url"], source["hash"], MAX_IMAGE_BYTES if source["artifact_type"] == "image" else MAX_TEXT_BYTES)
             index[source["id"]] = source
             if source["artifact_type"] == "image":
@@ -530,7 +622,7 @@ class SpecGuard(gl.Contract):
             settled_amount=u256(0), review_count=u256(0), next_review_at=u256(0), consumer_settle_after=u256(0),
             spec_mirror_url="", infrastructure_grace_used=u256(0), preliminary_status="", challenge_deadline=u256(0),
             challenge_id="", challenger="", challenge_manifest="", challenge_summary="", challenge_next_review_at=u256(0),
-            challenge_grace_used=u256(0))
+            challenge_grace_used=u256(0), challenge_records="[]")
         self.sponsor_counts[sponsor.as_hex.lower()] = u256(int(count) + 1)
 
     @gl.public.write
@@ -570,16 +662,78 @@ class SpecGuard(gl.Contract):
         guard.review_deadline = u256(_now() + int(guard.review_window))
         guard.status = SUBMITTED
 
-    def _snapshot(self, guard: Guard) -> dict:
+    def _snapshot(self, guard: Guard, challenge_manifest: str = "") -> dict:
         return {"brief": str(guard.brief), "spec_url": str(guard.spec_url), "spec_mirror_url": str(guard.spec_mirror_url),
                 "spec_hash": str(guard.spec_hash), "acceptance_policy": str(guard.acceptance_policy),
                 "artifact_kind": str(guard.artifact_kind), "implementation_url": str(guard.implementation_url),
                 "implementation_hash": str(guard.implementation_hash), "evidence_manifest": str(guard.evidence_manifest),
-                "challenge_manifest": str(guard.challenge_manifest)}
+                "challenge_manifest": str(challenge_manifest or guard.challenge_manifest)}
 
-    def _retry(self, guard: Guard, now: int, reason: str, challenge: bool) -> None:
+    def _save_challenge_rows(self, guard: Guard, rows: list) -> None:
+        if len(rows) > MAX_CHALLENGES:
+            raise gl.vm.UserError(f"{EXPECTED} Challenge limit reached")
+        guard.challenge_records = _canonical(rows)
+
+    def _find_challenge(self, guard: Guard, challenge_id: str, pending_only: bool = False):
+        rows = _challenge_rows(guard.challenge_records)
+        for index, row in enumerate(rows):
+            if isinstance(row, dict) and row.get("id") == challenge_id:
+                if pending_only and row.get("status") not in (CHALLENGE_SUBMITTED, CHALLENGE_UNDER_REVIEW):
+                    continue
+                return rows, index, row
+        return rows, -1, None
+
+    def _challenge_ids_in_manifest(self, guard: Guard) -> set:
+        ids = _challenge_manifest_ids(guard.evidence_manifest)
+        for row in _challenge_rows(guard.challenge_records):
+            if isinstance(row, dict):
+                ids.update(_challenge_manifest_ids(row.get("manifest", "")))
+        return ids
+
+    def _record_challenge_result(self, guard: Guard, challenge_id: str, status: str, reason: str, outcome: str = "") -> None:
+        rows, index, row = self._find_challenge(guard, challenge_id)
+        if row is None:
+            raise gl.vm.UserError(f"{EXPECTED} Challenge not found")
+        row["status"], row["reason"], row["outcome"] = status, str(reason)[:64], outcome
+        rows[index] = row
+        self._save_challenge_rows(guard, rows)
+
+    def _finalize_challenges(self, guard: Guard, now: int) -> None:
+        """Close the bounded challenge window without rewarding bad evidence.
+
+        Only a reviewed, independently substantiated contradiction can reverse
+        the preliminary decision. Invalid, abandoned, rejected, and unresolved
+        challenges preserve that original decision; they never manufacture a
+        sponsor refund or a beneficiary payout.
+        """
+        if guard.status != CHALLENGED or now < int(guard.challenge_deadline):
+            raise gl.vm.UserError(f"{EXPECTED} Challenge period remains active")
+        rows = _challenge_rows(guard.challenge_records)
+        original = guard.preliminary_status
+        substantiated = any(row.get("status") == CHALLENGE_SUBSTANTIATED for row in rows)
+        if substantiated:
+            final = BLOCKED if original == PRELIMINARY_APPROVED else APPROVED
+            reason = "challenge_substantiated"
+        else:
+            final = APPROVED if original == PRELIMINARY_APPROVED else BLOCKED
+            reason = "challenge_unsubstantiated"
+        for row in rows:
+            prior_status = row.get("status")
+            if prior_status in (CHALLENGE_SUBMITTED, CHALLENGE_UNDER_REVIEW, CHALLENGE_UNRESOLVED):
+                prior_status = CHALLENGE_UNRESOLVED
+            row["resolution_status"] = prior_status
+            row["status"] = CHALLENGE_FINALIZED
+            row["final_status"] = final
+        self._save_challenge_rows(guard, rows)
+        guard.status, guard.reason = final, reason
+        if final == APPROVED:
+            guard.consumer_settle_after = u256(now + CONSUMER_SETTLEMENT_WINDOW)
+
+    def _retry(self, guard: Guard, now: int, reason: str, challenge: bool, challenge_id: str = "") -> None:
         """Bound provider/consensus outages without allowing an endless escrow."""
         if challenge:
+            if challenge_id:
+                self._record_challenge_result(guard, challenge_id, CHALLENGE_UNRESOLVED, reason)
             guard.status, guard.reason, guard.challenge_next_review_at = CHALLENGED, reason[:64], u256(now + REVIEW_COOLDOWN)
             if int(guard.challenge_grace_used) < MAX_INFRASTRUCTURE_GRACE:
                 extension = min(REVIEW_COOLDOWN, MAX_INFRASTRUCTURE_GRACE - int(guard.challenge_grace_used))
@@ -592,23 +746,27 @@ class SpecGuard(gl.Contract):
             guard.review_deadline = u256(int(guard.review_deadline) + extension)
             guard.infrastructure_grace_used = u256(int(guard.infrastructure_grace_used) + extension)
 
-    def _apply_analysis(self, guard: Guard, result: dict, now: int, challenge: bool) -> None:
+    def _apply_analysis(self, guard: Guard, result: dict, now: int, challenge: bool, challenge_id: str = "") -> None:
         analysis, outcome = result["analysis"], result["outcome"]
         guard.confidence, guard.rationale = u256(analysis["confidence"]), analysis["rationale"]
         if outcome == RETRYABLE:
-            self._retry(guard, now, "uncertain_or_low_confidence", challenge)
+            if challenge:
+                self._retry(guard, now, "uncertain_or_low_confidence", True, challenge_id)
+            else:
+                self._retry(guard, now, "uncertain_or_low_confidence", challenge)
         elif challenge:
-            guard.status = APPROVED if outcome == APPROVED else BLOCKED
-            guard.reason = "challenge_upheld" if outcome == APPROVED else "challenge_overturned"
-            if outcome == APPROVED:
-                guard.consumer_settle_after = u256(now + CONSUMER_SETTLEMENT_WINDOW)
+            reversal = ((guard.preliminary_status == PRELIMINARY_APPROVED and outcome == BLOCKED)
+                        or (guard.preliminary_status == PRELIMINARY_BLOCKED and outcome == APPROVED))
+            status = CHALLENGE_SUBSTANTIATED if reversal else CHALLENGE_REJECTED
+            self._record_challenge_result(guard, challenge_id, status, "challenge_reviewed", outcome)
+            guard.status, guard.reason, guard.challenge_next_review_at = CHALLENGED, status, u256(0)
         else:
             guard.preliminary_status = PRELIMINARY_APPROVED if outcome == APPROVED else PRELIMINARY_BLOCKED
             guard.status, guard.reason = guard.preliminary_status, "challenge_period_open"
             guard.challenge_deadline = u256(now + int(_policy(str(guard.acceptance_policy))["challenge_window"]))
 
-    def _run_review(self, guard: Guard, now: int, challenge: bool) -> None:
-        snapshot = self._snapshot(guard)
+    def _run_review(self, guard: Guard, now: int, challenge: bool, challenge_id: str = "", snapshot: dict = None) -> None:
+        snapshot = snapshot or self._snapshot(guard)
         def leader():
             return _observe(snapshot, challenge)
         def validator(leader_result):
@@ -618,18 +776,19 @@ class SpecGuard(gl.Contract):
         result = gl.vm.run_nondet_unsafe(leader, validator)
         guard.review_count = u256(int(guard.review_count) + 1)
         if not isinstance(result, dict):
-            self._retry(guard, now, "consensus_unavailable", challenge)
+            self._retry(guard, now, "consensus_unavailable", challenge, challenge_id)
         elif result.get("kind") == "analysis" and result.get("outcome") in (APPROVED, BLOCKED, RETRYABLE):
-            self._apply_analysis(guard, result, now, challenge)
+            self._apply_analysis(guard, result, now, challenge, challenge_id)
         elif result.get("kind") == "integrity":
             if challenge:
-                guard.status, guard.reason = BLOCKED, "challenge_integrity_failure"
+                self._record_challenge_result(guard, challenge_id, CHALLENGE_INVALID, str(result.get("reason", "challenge_integrity_failure")))
+                guard.status, guard.reason = CHALLENGED, "challenge_invalid"
             else:
                 guard.preliminary_status, guard.status = PRELIMINARY_BLOCKED, PRELIMINARY_BLOCKED
                 guard.reason = str(result.get("reason", "integrity_failure"))[:64]
                 guard.challenge_deadline = u256(now + int(_policy(str(guard.acceptance_policy))["challenge_window"]))
         else:
-            self._retry(guard, now, str(result.get("reason", "provider_unavailable")), challenge)
+            self._retry(guard, now, str(result.get("reason", "provider_unavailable")), challenge, challenge_id)
 
     @gl.public.write
     def review(self, guard_id: str) -> None:
@@ -643,25 +802,46 @@ class SpecGuard(gl.Contract):
 
     @gl.public.write
     def challenge(self, guard_id: str, challenge_id: str, counterevidence_manifest: str, summary: str) -> None:
-        """Open the single bounded application challenge before settlement.
+        """Submit one bounded challenge from one eligible affected role.
 
         This does not appeal or alter a GenLayer-finalized review transaction;
-        it asks validators to assess additional committed counterevidence.
+        it asks validators to assess additional committed counterevidence. A
+        challenge remains non-economic until independently reviewed.
         """
         guard, now = self._get(guard_id), _now()
-        if guard.status not in (PRELIMINARY_APPROVED, PRELIMINARY_BLOCKED) or now >= int(guard.challenge_deadline):
+        if guard.status not in (PRELIMINARY_APPROVED, PRELIMINARY_BLOCKED, CHALLENGED) or now >= int(guard.challenge_deadline):
             raise gl.vm.UserError(f"{EXPECTED} Guard is not challengeable")
         if not any(_same_address(gl.message.sender_address, role) for role in (guard.sponsor, guard.beneficiary, guard.consumer)):
             raise gl.vm.UserError(f"{EXPECTED} Caller is not authorized to challenge")
-        if guard.challenge_id:
+        rows = _challenge_rows(guard.challenge_records)
+        if len(rows) >= MAX_CHALLENGES:
+            raise gl.vm.UserError(f"{EXPECTED} Challenge limit reached")
+        sender = gl.message.sender_address.as_hex.lower()
+        if any(row.get("challenger") == sender for row in rows):
+            raise gl.vm.UserError(f"{EXPECTED} Challenger already used")
+        challenge_id = _identifier(challenge_id, "challenge id", 48)
+        if challenge_id in {row.get("id") for row in rows}:
             raise gl.vm.UserError(f"{EXPECTED} Challenge already used")
         manifest = _manifest(counterevidence_manifest, _policy(str(guard.acceptance_policy)), True)
-        if _canonical(manifest) == str(guard.evidence_manifest):
+        manifest_ids = {source["id"] for source in manifest["sources"]}
+        if manifest_ids & self._challenge_ids_in_manifest(guard):
+            raise gl.vm.UserError(f"{EXPECTED} Evidence id already used")
+        canonical_manifest = _canonical(manifest)
+        existing_commitments = _manifest_commitments(guard.evidence_manifest)
+        for row in rows:
+            existing_commitments.update(_manifest_commitments(row.get("manifest", "")))
+        if (canonical_manifest == str(guard.evidence_manifest)
+                or any(row.get("manifest") == canonical_manifest for row in rows)
+                or any((source["url"], source["hash"]) in existing_commitments for source in manifest["sources"])):
             raise gl.vm.UserError(f"{EXPECTED} Replayed challenge evidence")
-        guard.challenge_id = _identifier(challenge_id, "challenge id", 48)
-        guard.challenger = gl.message.sender_address.as_hex.lower()
-        guard.challenge_manifest = _canonical(manifest)
-        guard.challenge_summary = _bounded(summary, "challenge summary", MAX_SUMMARY)
+        clean_summary = _bounded(summary, "challenge summary", MAX_SUMMARY)
+        rows.append({"id": challenge_id, "challenger": sender, "manifest": canonical_manifest,
+                     "summary": clean_summary, "status": CHALLENGE_SUBMITTED, "outcome": "",
+                     "reason": "", "submitted_at": now})
+        self._save_challenge_rows(guard, rows)
+        # Keep legacy singular fields populated for existing clients.
+        guard.challenge_id, guard.challenger = challenge_id, sender
+        guard.challenge_manifest, guard.challenge_summary = canonical_manifest, clean_summary
         guard.status = CHALLENGED
 
     @gl.public.write
@@ -671,16 +851,27 @@ class SpecGuard(gl.Contract):
             raise gl.vm.UserError(f"{EXPECTED} Challenge is not reviewable")
         if not any(_same_address(gl.message.sender_address, role) for role in (guard.sponsor, guard.beneficiary, guard.consumer)):
             raise gl.vm.UserError(f"{EXPECTED} Caller is not authorized to review")
-        self._run_review(guard, now, True)
+        rows = _challenge_rows(guard.challenge_records)
+        selected = next((row for row in rows if row.get("status") in (CHALLENGE_SUBMITTED, CHALLENGE_UNDER_REVIEW)), None)
+        if selected is None:
+            raise gl.vm.UserError(f"{EXPECTED} No pending challenge")
+        selected["status"] = CHALLENGE_UNDER_REVIEW
+        self._save_challenge_rows(guard, rows)
+        snapshot = self._snapshot(guard, selected.get("manifest", ""))
+        self._run_review(guard, now, True, str(selected["id"]), snapshot)
 
     @gl.public.write
     def finalize_preliminary(self, guard_id: str) -> None:
         guard = self._get(guard_id)
-        if guard.status not in (PRELIMINARY_APPROVED, PRELIMINARY_BLOCKED) or _now() < int(guard.challenge_deadline):
+        now = _now()
+        if guard.status == CHALLENGED:
+            self._finalize_challenges(guard, now)
+            return
+        if guard.status not in (PRELIMINARY_APPROVED, PRELIMINARY_BLOCKED) or now < int(guard.challenge_deadline):
             raise gl.vm.UserError(f"{EXPECTED} Challenge period remains active")
         if guard.status == PRELIMINARY_APPROVED:
             guard.status, guard.reason = APPROVED, "challenge_period_elapsed"
-            guard.consumer_settle_after = u256(_now() + CONSUMER_SETTLEMENT_WINDOW)
+            guard.consumer_settle_after = u256(now + CONSUMER_SETTLEMENT_WINDOW)
         else:
             guard.status, guard.reason = BLOCKED, "challenge_period_elapsed"
 
@@ -713,7 +904,7 @@ class SpecGuard(gl.Contract):
     @gl.public.write
     def refund_blocked(self, guard_id: str) -> None:
         guard = self._get(guard_id)
-        if guard.status != BLOCKED:
+        if guard.status != BLOCKED or not _same_address(guard.sponsor, gl.message.sender_address):
             raise gl.vm.UserError(f"{EXPECTED} Guard is not blocked")
         self._settle(guard, guard.sponsor, "refunded_sponsor")
 
@@ -729,6 +920,8 @@ class SpecGuard(gl.Contract):
     def expire(self, guard_id: str) -> None:
         guard = self._get(guard_id)
         now = _now()
+        if not any(_same_address(gl.message.sender_address, role) for role in (guard.sponsor, guard.beneficiary, guard.consumer)):
+            raise gl.vm.UserError(f"{EXPECTED} Caller is not authorized to expire guard")
         if guard.status in (FUNDED, ACTIVE):
             if now < int(guard.deliver_by):
                 raise gl.vm.UserError(f"{EXPECTED} Delivery deadline has not passed")
@@ -736,9 +929,13 @@ class SpecGuard(gl.Contract):
             if now < int(guard.review_deadline):
                 raise gl.vm.UserError(f"{EXPECTED} Review deadline has not passed")
         elif guard.status == CHALLENGED:
-            # An unresolved material challenge never pays the beneficiary.
             if now < int(guard.challenge_deadline):
                 raise gl.vm.UserError(f"{EXPECTED} Challenge deadline has not passed")
+            # Closing the window applies the original preliminary decision
+            # unless a reviewed challenge was substantiated. It is not itself
+            # a refund, so bad or abandoned evidence cannot manufacture one.
+            self._finalize_challenges(guard, now)
+            return
         else:
             raise gl.vm.UserError(f"{EXPECTED} Guard is not expirable")
         self._settle(guard, guard.sponsor, "refunded_sponsor")
@@ -752,4 +949,6 @@ class SpecGuard(gl.Contract):
         return {"name": "SpecGuard", "version": VERSION, "min_confidence": MIN_CONFIDENCE,
                 "min_deposit_wei": MIN_DEPOSIT, "max_criteria": MAX_CRITERIA, "max_sources": MAX_SOURCES,
                 "max_text_bytes": MAX_TEXT_BYTES, "max_image_bytes": MAX_IMAGE_BYTES,
-                "max_cases_per_sponsor": MAX_CASES_PER_SPONSOR, "challenge_bonds": "not_implemented"}
+                "max_cases_per_sponsor": MAX_CASES_PER_SPONSOR, "max_challenges": MAX_CHALLENGES,
+                "provenance": "declared-origin-only; authenticated attestations unsupported",
+                "challenge_bonds": "not_implemented"}

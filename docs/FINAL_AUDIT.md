@@ -1,12 +1,46 @@
-# SpecGuard v0.2.2 final audit
+# SpecGuard final audit
 
-## v0.3.0 superseding audit note
+## v0.4.0 remediation closeout (source not deployed)
 
-This document's v0.2.2 custody observations remain historical. v0.3.0 adds
+The current source is `v0.4.0` and remains undeployed pending separate
+authorization. This closeout addresses two confirmed v0.3 challenge/escrow
+vulnerabilities: invalid or unreviewed challenges could reach a refund path,
+and one challenge could monopolize the window. It also rejects cross-manifest
+evidence-ID collisions, counts committed HTTPS origins in corroboration, and
+rejects unsupported authenticated-provenance policies.
+
+The corrected source preserves independent leader/validator observation,
+criterion-level equivalence, fail-closed model parsing, one-shot debit-before-
+dispatch settlement, and bounded liveness. No live transaction or new address
+is claimed for this source.
+
+Closeout verification: 45 tests passed, GenVM lint passed, ABI/schema
+generation passed, and `scripts/preflight.py` passed. The current contract
+source SHA-256 is
+`e85810806c942c4c9f4abeb164400b52ba0a79a89e396afd24a7aae1e9b5565f`.
+
+### Regression matrix
+
+| Confirmed mechanism | Corrective invariant | Direct Mode proof |
+| --- | --- | --- |
+| Invalid counterevidence hash reached `blocked` and refund | Integrity-invalid challenges are recorded as `invalid`; the original preliminary decision is restored at close | `test_invalid_challenge_hash_preserves_approval_and_deposit` |
+| Unreviewed challenge expired into sponsor refund | `expire` finalizes the challenge window without settling; only an explicit terminal method can move funds | `test_duplicate_and_stale_challenges_are_rejected`, `test_unavailable_challenge_source_cannot_refund_sponsor` |
+| One party monopolized the challenge slot | Three bounded slots, one per eligible role, and no early terminal transition | `test_multiple_distinct_challengers_cannot_be_monopolized`, `test_reviewed_challenge_does_not_truncate_other_challenge_rights` |
+| Original/challenge evidence ID shadowing | IDs and `(url, hash)` commitments are globally unique per guard | `test_cross_manifest_evidence_id_collision_is_rejected` |
+| Caller-declared labels overstated provenance | Both authority labels and committed origins must be distinct; authenticated mode is rejected without a runtime attestation primitive | same-origin, false-independence, and authenticated-provenance tests |
+| Unauthorized economic transitions | Sponsor-only blocked refund and role-gated expiry/settlement | `test_unauthorized_refund_and_expiry_cannot_move_escrow` |
+
+The v0.3 deployment and earlier releases below are historical evidence only.
+
+# SpecGuard v0.2.2 historical audit
+
+## Historical v0.3.0 superseding audit note
+
+This document's v0.2.2 custody observations remain historical. v0.3.0 added
 immutable criterion policies, distinct-authority corroboration thresholds,
 criterion-level validator equivalence, application challenges, and bounded
-challenge liveness. It is intentionally undeployed pending an authorized
-StudioNet deployment and fresh byte-for-byte source parity verification.
+challenge liveness. It was deployed and source-matched as historical evidence;
+it is superseded by the undeployed v0.4.0 remediation source above.
 
 Audit branch: `codex/specguard-final-audit`.
 

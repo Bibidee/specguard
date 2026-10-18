@@ -1,4 +1,4 @@
-# Consensus and equivalence
+# Consensus and equivalence (v0.4.0 source)
 
 Each call to `review` or `review_challenge` copies persisted fields into an
 in-memory snapshot before `run_nondet_unsafe`. The leader and every validator
@@ -18,4 +18,10 @@ create an approving settlement state.
 
 Application challenges are distinct from GenLayer protocol appeals. A challenge
 does not alter a finalized protocol transaction; it opens a new, bounded,
-counterevidence review that can change the application's preliminary outcome.
+counterevidence review. Up to three distinct roles may submit challenges, and
+each record is reviewed independently. A challenge is economically inert until
+its evidence is hash-verified and the validator result is a substantiated
+contradiction of the original preliminary outcome. Invalid, abandoned,
+rejected, or unresolved records preserve that original outcome at the deadline.
+Evidence IDs are globally unique across the original and challenge manifests,
+so a challenge cannot shadow an earlier source in the validator's index.

@@ -1,27 +1,34 @@
 # SpecGuard design
 
-> The sections below describe historical v0.2.2 behavior where noted. The
-> current source is v0.3.0 and its criterion, provenance, challenge, and
-> liveness policy is authoritative for a future deployment.
+The current source is v0.4.0 and is not deployed. The v0.3.0 deployment
+described in the historical evidence remains useful only for provenance.
 
-## v0.3 acceptance policy and challenge lifecycle
+## v0.4 acceptance policy and challenge lifecycle
 
 At `create_guard`, the sponsor commits canonical JSON containing 1–8 immutable
 criteria. Each has a stable ID, bounded description, explicit rule
 `evidence_supports_requirement`, criticality, and a minimum count of distinct
-declared authorities. The beneficiary must submit a manifest binding each
-evidence record to criterion IDs, URL, SHA-256, source type, metadata, and its
-declared authority. The contract rejects missing coverage before review.
+declared authorities and distinct committed HTTPS origins. The beneficiary must
+submit a manifest binding each evidence record to criterion IDs, URL, SHA-256,
+source type, metadata, and its declared authority. The contract rejects
+missing coverage before review. The origin count is an assurance boundary, not
+publisher authentication: the runtime has no supported cryptographic
+attestation verifier, so policies requesting authenticated provenance are
+rejected rather than falsely satisfied.
 
 An initial review stores only `preliminary_approved` or
 `preliminary_blocked`; neither is payable. During the immutable policy's
-challenge window, an affected role may submit one distinct counterevidence
-manifest. Validators then reassess the original material plus counterevidence.
-That result can reverse the preliminary outcome. A challenged guard cannot pay;
-on the bounded deadline it follows the safe refund terminal path. This is an
-application-level challenge, not a mutation of GenLayer's native appeal model.
+challenge window, up to three distinct affected roles may submit separate
+counterevidence manifests. IDs are globally unique across the original and
+all accepted challenge manifests. Validators reassess the original material
+plus one challenge at a time. A reviewed, independently substantiated
+contradiction can reverse the preliminary outcome; invalid, rejected,
+abandoned, or unresolved challenges cannot. A challenged guard cannot pay
+until the bounded window closes and the aggregate outcome is finalized. This
+is an application-level challenge, not a mutation of GenLayer's native appeal
+model.
 
-## v0.3 liveness rule
+## v0.4 liveness rule
 
 Both review and challenge infrastructure failures receive a 15-minute cooldown
 and a matching deadline extension, capped at seven days. This corrects the
@@ -64,7 +71,9 @@ The consumer has a bounded exclusive right to settle an approved guard. After
 seven days the beneficiary may settle the already-approved escrow. The sponsor
 has no approved-settlement path. `sponsor_counts` measures active funded cases,
 not lifetime creations, and is decremented exactly once by the common terminal
-settlement path.
+settlement path. `refund_blocked` is sponsor-authorized and only operates after
+a genuine blocked terminal state; `expire` cannot refund a challenged guard
+without first applying the challenge finalization policy.
 
 ## Review deadlines and bounded availability grace
 
