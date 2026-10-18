@@ -15,7 +15,11 @@
   matched byte-for-byte: **YES**.
 - Local release gate: **49 tests passed**, 0 skipped, 0 failed; GenVM lint PASS,
   ABI/schema PASS, and preflight PASS.
-- GitHub Actions: [39158223106](https://github.com/Bibidee/specguard/actions/runs/39158223106) completed successfully for this merged HEAD.
+- GitHub Actions: source release run
+  [39158223106](https://github.com/Bibidee/specguard/actions/runs/39158223106) and
+  final documentation merge run
+  [39166921946](https://github.com/Bibidee/specguard/actions/runs/39166921946)
+  both completed successfully.
 - `get_info()`: `name=SpecGuard`, `version=0.4.1`, `min_confidence=75`,
   `min_deposit_wei=1000000000000000`, `max_text_bytes=16000`,
   `max_image_bytes=2000000`, `max_cases_per_sponsor=64`, `max_challenges=3`.
