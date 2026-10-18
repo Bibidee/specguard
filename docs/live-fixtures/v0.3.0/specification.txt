@@ -1,0 +1,1 @@
+SpecGuard live criterion C1: the submitted release report must state that security regression tests passed.

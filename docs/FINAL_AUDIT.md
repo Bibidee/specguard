@@ -1,5 +1,13 @@
 # SpecGuard v0.2.2 final audit
 
+## v0.3.0 superseding audit note
+
+This document's v0.2.2 custody observations remain historical. v0.3.0 adds
+immutable criterion policies, distinct-authority corroboration thresholds,
+criterion-level validator equivalence, application challenges, and bounded
+challenge liveness. It is intentionally undeployed pending an authorized
+StudioNet deployment and fresh byte-for-byte source parity verification.
+
 Audit branch: `codex/specguard-final-audit`.
 
 This document separates proven contract behavior from network-dependent

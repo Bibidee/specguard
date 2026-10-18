@@ -1,5 +1,51 @@
 # Deployment status
 
+## Canonical v0.3.0 — verified
+
+- Frozen contract-source commit: `d68374aa4ea41a4f685e23cdb66f9f978ce279c9`
+- Fixture/documentation commit used for live artifacts: `23ec793d6dba5ddc65890fd448d2f72d961f8e27`
+- Raw source SHA-256: `4bab5d8642ae98aa8a9196e4890b6a6d5acc9317664103a250ffead773ee6b36`
+- Contract: [`0x79E1948E93a28F3B90001a2cB984566a0BF781C7`](https://explorer-studio.genlayer.com/address/0x79E1948E93a28F3B90001a2cB984566a0BF781C7)
+- Deployment transaction: [`0x704484a21ea26daa000e9e523caef81f119680cd0b0e7e7599f3c827aa4682e4`](https://explorer-studio.genlayer.com/tx/0x704484a21ea26daa000e9e523caef81f119680cd0b0e7e7599f3c827aa4682e4)
+- Deployment result: `FINALIZED`, `MAJORITY_AGREE`, GenVM `SUCCESS`
+- Source parity: `gen_getContractCode` returned 38,647 bytes; local source was
+  also 38,647 bytes and matched byte-for-byte with the SHA-256 above.
+
+### Live approved settlement
+
+Guard `SG-LIVE-20261018-A` used a 0.001 GEN deposit, sponsor
+`0x7afc209ad72153f6c8ae7b8055bfba6e7f4d5efc`, beneficiary
+`0x7eb2a4b4e913df62eae807ef60509b3b7284c7fa`, and designated consumer
+`0xf883bce8fcb120f714b147446342d7e4545bc988`. Its policy required two
+declared authorities to corroborate criterion `C1`.
+
+| Artifact | Immutable URL | SHA-256 |
+| --- | --- | --- |
+| Specification | `raw.githubusercontent.com/Bibidee/specguard/23ec793d6dba5ddc65890fd448d2f72d961f8e27/docs/live-fixtures/v0.3.0/specification.txt` | `0x108d49da462dd3250456a17519cee3cdc0f2653496c2d3ec5e5d041d499862fd` |
+| Implementation | `raw.githubusercontent.com/Bibidee/specguard/23ec793d6dba5ddc65890fd448d2f72d961f8e27/docs/live-fixtures/v0.3.0/implementation.txt` | `0x6d43ea78e0f131fc2649cf17d633f42f435934dea788f49d4ac558089b249d5c` |
+| Evidence EV1 | `raw.githubusercontent.com/Bibidee/specguard/23ec793d6dba5ddc65890fd448d2f72d961f8e27/docs/live-fixtures/v0.3.0/ci-record.txt` | `0x9641fed8b0c0e66b5f125b2725c8d08294207d036f2804dd01b48ffccd132bb2` |
+| Evidence EV2 | `cdn.jsdelivr.net/gh/Bibidee/specguard@23ec793d6dba5ddc65890fd448d2f72d961f8e27/docs/live-fixtures/v0.3.0/audit-record.txt` | `0xee14ece14999cd96dfe723c71847eb02b9bf7a1dbe10b4ae5b513520504034fc` |
+
+| Step | Transaction | Verified result |
+| --- | --- | --- |
+| Fund | [`0x3894cbf97e8589b265f7172eec77cf316260aa6c80dc49a28dc3787b5ceff662`](https://explorer-studio.genlayer.com/tx/0x3894cbf97e8589b265f7172eec77cf316260aa6c80dc49a28dc3787b5ceff662) | `FINALIZED`, `MAJORITY_AGREE`, GenVM `SUCCESS`, 0.001 GEN credited |
+| Accept | [`0xb58cc006dab6ca834d5c7b0a808ab2cd0c72e88be39e3e3f4463b2ed5b79f155`](https://explorer-studio.genlayer.com/tx/0xb58cc006dab6ca834d5c7b0a808ab2cd0c72e88be39e3e3f4463b2ed5b79f155) | `FINALIZED`, `MAJORITY_AGREE`, GenVM `SUCCESS` |
+| Submit | [`0x9a7e6a9a429f827011c0fbef192633711b99879218ad158ef6268366df1f9ac5`](https://explorer-studio.genlayer.com/tx/0x9a7e6a9a429f827011c0fbef192633711b99879218ad158ef6268366df1f9ac5) | `FINALIZED`, `MAJORITY_AGREE`, GenVM `SUCCESS` |
+| First review | [`0xf1461a29763356bbacb9e655f7ef50df4308ec6ca9a7eb40f7e8bb4e81d2b899`](https://explorer-studio.genlayer.com/tx/0xf1461a29763356bbacb9e655f7ef50df4308ec6ca9a7eb40f7e8bb4e81d2b899) | `FINALIZED`, `MAJORITY_AGREE`, GenVM `SUCCESS`; safe `retryable / malformed_model_output` |
+| Controlled review retry | [`0x180f93b46e28182da168f37a6181876bb66edb18ffbc7f10c533c3e9efce39d7`](https://explorer-studio.genlayer.com/tx/0x180f93b46e28182da168f37a6181876bb66edb18ffbc7f10c533c3e9efce39d7) | `FINALIZED`, `MAJORITY_AGREE`, GenVM `SUCCESS`; `preliminary_approved`, confidence `100` |
+| Finalize preliminary | [`0x16550a8ae178e689646aa5f545eea2196e1b9a563e0df406f5d80f8a131a7b5a`](https://explorer-studio.genlayer.com/tx/0x16550a8ae178e689646aa5f545eea2196e1b9a563e0df406f5d80f8a131a7b5a) | `FINALIZED`, `MAJORITY_AGREE`, GenVM `SUCCESS`; `approved` after an unchallenged deadline |
+| Settle | [`0xbe191925340264d5ba35b8384e763aacf5c2a1d2980d047e41b1969b62855d15`](https://explorer-studio.genlayer.com/tx/0xbe191925340264d5ba35b8384e763aacf5c2a1d2980d047e41b1969b62855d15) | `FINALIZED`, `MAJORITY_AGREE`, GenVM `SUCCESS`; designated consumer settled 0.001 GEN |
+| Child transfer | [`0x4a16cba604761b8d63202be10c219eb262146d3986b450a561024f8e51583f9a`](https://explorer-studio.genlayer.com/tx/0x4a16cba604761b8d63202be10c219eb262146d3986b450a561024f8e51583f9a) | `FINALIZED`, beneficiary credited `1000000000000000` wei with `value_credited: true` |
+
+The canonical final read reports `status: paid_beneficiary`,
+`reason: paid_beneficiary`, `deposit: 0`, and
+`settled_amount: 1000000000000000`. The evidence sources use two declared
+authority labels for the controlled lifecycle proof; these labels do not prove
+independent real-world publisher identity.
+
+All sections below are historical and are retained only for the exact source
+versions they describe. They are not current deployment evidence for v0.3.0.
+
 ## Historical v0.1.0 — superseded; do not use
 
 The initial v0.1.0 deployment finalized on StudioNet at

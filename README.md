@@ -1,24 +1,31 @@
 # SpecGuard
 
+> **v0.3.0 is the canonical verified StudioNet release.** Its frozen source,
+> deployment, byte-for-byte source parity, and live approved settlement are
+> recorded below. Earlier deployments remain historical only.
+
 SpecGuard is a standalone GenLayer Intelligent Contract primitive for releasing
-an escrowed conformance bond when an implementation demonstrably satisfies an
-exact, hash-bound specification. It is designed for software releases,
-vendor deliverables, security remediations, AI-generated outputs, and any
-workflow where a downstream consumer should receive a one-time consensus-backed
-approval only after evidence has been verified.
+an escrowed conformance bond only after a hash-bound implementation satisfies a
+precommitted, criterion-level acceptance policy with corroborated evidence. It
+is designed for software releases, vendor deliverables, security remediations,
+and any workflow where a downstream consumer needs a one-time, consensus-backed
+authorization gate.
 
 ## What it does
 
-1. A sponsor creates and funds a specification escrow with a fixed specification
-   URL and SHA-256 digest.
-2. The nominated beneficiary accepts, then submits an implementation artifact,
-   supporting evidence, and their SHA-256 digests.
-3. Independent GenLayer validators fetch the exact committed bytes, verify the
-   digests before decoding, and assess conformance.
-4. A bounded consensus result becomes `approved`, `blocked`, or `retryable`.
-5. The designated consumer has a seven-day exclusive approved-settlement
-   period. If it disappears, only the beneficiary can settle after that period;
-   the sponsor can never reclaim an approved guard.
+1. A sponsor funds a guard with an immutable JSON policy containing stable
+   criterion IDs, descriptions, criticality, corroboration thresholds, and a
+   bounded challenge window.
+2. The beneficiary accepts, then commits an implementation and evidence manifest
+   that binds source IDs, declared authorities, URLs, SHA-256 digests, metadata,
+   and applicable criteria.
+3. Independent GenLayer validators re-fetch every relevant byte stream, verify
+   commitments, enforce provenance coverage, and independently derive a
+   criterion-level result.
+4. A preliminary result enters a bounded challenge period. One affected party
+   may submit committed counterevidence; that review can overturn the result.
+5. Only a final approved guard can pay the beneficiary, and only its designated
+   consumer has the initial settlement right.
 
 SpecGuard is an escrow primitive, not a deployment platform. It does not prove
 real-world identity, make external systems execute a change, authenticate an
@@ -31,24 +38,27 @@ HTTPS publisher, or guarantee an LLM judgment is correct.
   and all numeric IP-literal authorities.
 - Artifact text and visible image text are quoted as untrusted data; embedded
   instructions are never reviewer instructions.
-- Approval requires `spec_match=yes`, `evidence_support=yes`, `risk=no`, and
-  confidence at least 75 from independently equivalent validator observations.
-- Validators agree on the deterministic authorization outcome, not free-form
-  rationale. Any outcome disagreement fails consensus; varying rationale cannot
-  turn a blocked or retryable review into an approval.
+- Every policy criterion must be `pass`; any `fail` blocks authorization, while
+  `unclear`, missing, unavailable, or low-confidence assessment is retryable.
+- A passing criterion must cite the policy's minimum number of distinct
+  **declared** authorities. A mirror or two URLs declared under one authority
+  count once, and declarations do not prove real-world identity.
+- Validators agree on criterion statuses, critical failures, provenance state,
+  final outcome, and confidence within 20 points—not free-form rationale.
 - Every payout uses a single transfer helper and follows debit-in-storage,
   persist-state, then emit-transfer ordering.
 
 ## Lifecycle
 
-`funded -> active -> submitted -> approved -> paid_beneficiary`
+`funded -> active -> submitted -> preliminary_approved -> approved -> paid_beneficiary`
 
-`submitted -> blocked -> refunded_sponsor`
+`submitted -> preliminary_blocked -> blocked -> refunded_sponsor`
 
-`submitted <-> retryable`, followed by `expire -> refunded_sponsor` if the
-review deadline passes. A sponsor may cancel only before beneficiary acceptance.
+`preliminary_* -> challenged -> approved | blocked | retryable`, followed by a
+safe sponsor refund if a review or material challenge reaches its bounded
+deadline unresolved. A sponsor may cancel only before beneficiary acceptance.
 
-v0.2.2 also lets the beneficiary register one HTTPS specification mirror while
+SpecGuard also lets the beneficiary register one HTTPS specification mirror while
 the guard is active. It is used whenever the sponsor-controlled primary cannot
 verify against the original SHA-256, including a substituted response. Neither
 source can authorize a review unless its bytes match that commitment; if both
@@ -67,21 +77,40 @@ python -m pytest tests -q
 python scripts/preflight.py
 ```
 
-## StudioNet release evidence — v0.2.2
+See [the design](docs/DESIGN.md), [security model](docs/SECURITY.md),
+[consensus rules](docs/CONSENSUS.md), and [test matrix](docs/TESTING.md).
+
+## What GenLayer adds
+
+Without independent validators, the party running one off-chain model could
+selectively accept convenient evidence and release escrow. Here, leader and
+validators independently retrieve the committed materials and must agree on the
+criterion-level authorization consequence before any application state can
+become payable. The contract still does not guarantee that web publishers,
+declared authorities, models, or providers are truthful or available.
+
+## StudioNet release evidence — v0.3.0
 
 The canonical contract is
-[`0xD57061E923F6E8BD0BCB6a615551388D61bBE8aa`](https://explorer-studio.genlayer.com/address/0xD57061E923F6E8BD0BCB6a615551388D61bBE8aa),
-deployed from source commit `f666b362a368906af151bb93822f3c55879b0f17`.
-The deployed source was retrieved through `gen_getContractCode`: local and
-deployed source were each 24,797 bytes, with identical SHA-256
-`54087ad83eb2e639193ae09278eb503b60592b92c23584266d168ebc2d67ed8c`.
+[`0x79E1948E93a28F3B90001a2cB984566a0BF781C7`](https://explorer-studio.genlayer.com/address/0x79E1948E93a28F3B90001a2cB984566a0BF781C7),
+deployed from frozen contract-source commit `d68374aa4ea41a4f685e23cdb66f9f978ce279c9` in
+[deployment transaction `0x704484a21ea26daa000e9e523caef81f119680cd0b0e7e7599f3c827aa4682e4`](https://explorer-studio.genlayer.com/tx/0x704484a21ea26daa000e9e523caef81f119680cd0b0e7e7599f3c827aa4682e4).
+The finalized deployment reached `MAJORITY_AGREE` with GenVM `SUCCESS`.
+`gen_getContractCode` retrieved 38,647 deployed bytes; they exactly match the
+38,647 local bytes and SHA-256
+`4bab5d8642ae98aa8a9196e4890b6a6d5acc9317664103a250ffead773ee6b36`.
 
-A live guard completed `funded -> active -> submitted -> approved ->
-paid_beneficiary`. The review finalized `MAJORITY_AGREE` with GenVM `SUCCESS`,
-confidence 93, and the designated consumer settled the 0.001 GEN escrow. Its
-child transfer also finalized with `value_credited: true`; the canonical final
-record has `deposit: 0` and `settled_amount: 1000000000000000`. Full receipts,
-immutable artifact commitments, and superseded deployment history are in
+Live guard `SG-LIVE-20261018-A` completed `funded -> active -> submitted ->
+retryable -> preliminary_approved -> approved -> paid_beneficiary`. The first
+review safely persisted `retryable / malformed_model_output`; the single
+controlled retry finalized `MAJORITY_AGREE` with GenVM `SUCCESS` and confidence
+100. After an unchallenged on-chain challenge period, finalization and settlement
+both finalized with `MAJORITY_AGREE` and GenVM `SUCCESS`. The designated consumer
+settled 0.001 GEN, and its
+[child transfer](https://explorer-studio.genlayer.com/tx/0x4a16cba604761b8d63202be10c219eb262146d3986b450a561024f8e51583f9a)
+finalized with `value_credited: true`. The canonical final record has
+`deposit: 0` and `settled_amount: 1000000000000000`. Full receipts, immutable
+artifact commitments, and superseded deployment history are in
 [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md).
 
 Historical transaction scripts are intentionally disabled because they can
