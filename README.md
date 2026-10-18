@@ -1,8 +1,8 @@
 # SpecGuard
 
-> **v0.3.0 is a new, undeployed release candidate.** The StudioNet v0.2.2
-> address below remains historical evidence for v0.2.2 only; it is not source
-> parity evidence for this upgraded contract.
+> **v0.3.0 is the canonical verified StudioNet release.** Its frozen source,
+> deployment, byte-for-byte source parity, and live approved settlement are
+> recorded below. Earlier deployments remain historical only.
 
 SpecGuard is a standalone GenLayer Intelligent Contract primitive for releasing
 an escrowed conformance bond only after a hash-bound implementation satisfies a
@@ -89,21 +89,28 @@ criterion-level authorization consequence before any application state can
 become payable. The contract still does not guarantee that web publishers,
 declared authorities, models, or providers are truthful or available.
 
-## StudioNet release evidence — v0.2.2
+## StudioNet release evidence — v0.3.0
 
 The canonical contract is
-[`0xD57061E923F6E8BD0BCB6a615551388D61bBE8aa`](https://explorer-studio.genlayer.com/address/0xD57061E923F6E8BD0BCB6a615551388D61bBE8aa),
-deployed from source commit `f666b362a368906af151bb93822f3c55879b0f17`.
-The deployed source was retrieved through `gen_getContractCode`: local and
-deployed source were each 24,797 bytes, with identical SHA-256
-`54087ad83eb2e639193ae09278eb503b60592b92c23584266d168ebc2d67ed8c`.
+[`0x79E1948E93a28F3B90001a2cB984566a0BF781C7`](https://explorer-studio.genlayer.com/address/0x79E1948E93a28F3B90001a2cB984566a0BF781C7),
+deployed from frozen contract-source commit `d68374aa4ea41a4f685e23cdb66f9f978ce279c9` in
+[deployment transaction `0x704484a21ea26daa000e9e523caef81f119680cd0b0e7e7599f3c827aa4682e4`](https://explorer-studio.genlayer.com/tx/0x704484a21ea26daa000e9e523caef81f119680cd0b0e7e7599f3c827aa4682e4).
+The finalized deployment reached `MAJORITY_AGREE` with GenVM `SUCCESS`.
+`gen_getContractCode` retrieved 38,647 deployed bytes; they exactly match the
+38,647 local bytes and SHA-256
+`4bab5d8642ae98aa8a9196e4890b6a6d5acc9317664103a250ffead773ee6b36`.
 
-A live guard completed `funded -> active -> submitted -> approved ->
-paid_beneficiary`. The review finalized `MAJORITY_AGREE` with GenVM `SUCCESS`,
-confidence 93, and the designated consumer settled the 0.001 GEN escrow. Its
-child transfer also finalized with `value_credited: true`; the canonical final
-record has `deposit: 0` and `settled_amount: 1000000000000000`. Full receipts,
-immutable artifact commitments, and superseded deployment history are in
+Live guard `SG-LIVE-20261018-A` completed `funded -> active -> submitted ->
+retryable -> preliminary_approved -> approved -> paid_beneficiary`. The first
+review safely persisted `retryable / malformed_model_output`; the single
+controlled retry finalized `MAJORITY_AGREE` with GenVM `SUCCESS` and confidence
+100. After an unchallenged on-chain challenge period, finalization and settlement
+both finalized with `MAJORITY_AGREE` and GenVM `SUCCESS`. The designated consumer
+settled 0.001 GEN, and its
+[child transfer](https://explorer-studio.genlayer.com/tx/0x4a16cba604761b8d63202be10c219eb262146d3986b450a561024f8e51583f9a)
+finalized with `value_credited: true`. The canonical final record has
+`deposit: 0` and `settled_amount: 1000000000000000`. Full receipts, immutable
+artifact commitments, and superseded deployment history are in
 [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md).
 
 Historical transaction scripts are intentionally disabled because they can
