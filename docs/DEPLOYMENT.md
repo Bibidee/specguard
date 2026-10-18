@@ -19,9 +19,28 @@
 - `get_info()`: `name=SpecGuard`, `version=0.4.1`, `min_confidence=75`,
   `min_deposit_wei=1000000000000000`, `max_text_bytes=16000`,
   `max_image_bytes=2000000`, `max_cases_per_sponsor=64`, `max_challenges=3`.
-- No funded guard, escrow, challenge, settlement, or other lifecycle write was
-  executed during this deployment pass. The live transaction tables below are
-  historical evidence for superseded releases.
+- A funded v0.4.1 lifecycle was completed after the deployment pass. Guard
+  `SG-LIVE-V041-20261018-A` used a `0.001 GEN` deposit, sponsor
+  `0x7eb2a4b4e913df62eae807ef60509b3b7284c7fa`, beneficiary
+  `0x8355d011e1fc874f3a91245711420d0c92cb3e47`, and designated consumer
+  `0xf883bce8fcb120f714b147446342d7e4545bc988`.
+
+### v0.4.1 live approved settlement
+
+| Step | Transaction | Verified result |
+| --- | --- | --- |
+| Fund | [`0x69afdbfd96a24cdf22e41da7d55aecc53380ec65243796a132607dbb8422bef0`](https://explorer-studio.genlayer.com/tx/0x69afdbfd96a24cdf22e41da7d55aecc53380ec65243796a132607dbb8422bef0) | `FINALIZED`, `MAJORITY_AGREE`, GenVM `SUCCESS`; `0.001 GEN` credited |
+| Accept | [`0x70976e9af8d9a0522572d14c7affb7fe7044a5037b2a9c03dc5e2da98aa46246`](https://explorer-studio.genlayer.com/tx/0x70976e9af8d9a0522572d14c7affb7fe7044a5037b2a9c03dc5e2da98aa46246) | `FINALIZED`, `MAJORITY_AGREE`, GenVM `SUCCESS` |
+| Submit implementation | [`0x542d1f9cf875006e9a2f348444e459c3538cf7a943e49decdc3d17a8c6eabb7e`](https://explorer-studio.genlayer.com/tx/0x542d1f9cf875006e9a2f348444e459c3538cf7a943e49decdc3d17a8c6eabb7e) | `FINALIZED`, `MAJORITY_AGREE`, GenVM `SUCCESS` |
+| Review | [`0xbbd1e7ceb138754c13fb3ed0e67207a4a4894dabbe31966b8f47654eb1eb2db6`](https://explorer-studio.genlayer.com/tx/0xbbd1e7ceb138754c13fb3ed0e67207a4a4894dabbe31966b8f47654eb1eb2db6) | `FINALIZED`, `MAJORITY_AGREE`, GenVM `SUCCESS`; `preliminary_approved`, confidence `90` |
+| Finalize preliminary | [`0x931fa8bcbd80e324be3af86daac5465984d8d2d4629eea571e361583aa503a8f`](https://explorer-studio.genlayer.com/tx/0x931fa8bcbd80e324be3af86daac5465984d8d2d4629eea571e361583aa503a8f) | `FINALIZED`, `MAJORITY_AGREE`, GenVM `SUCCESS`; `approved` after the unchallenged deadline |
+| Settle approved | [`0xe93ad84bd38c5d66fe922efda118eddcaf8933df150f393d8d6eb723f25ddf06`](https://explorer-studio.genlayer.com/tx/0xe93ad84bd38c5d66fe922efda118eddcaf8933df150f393d8d6eb723f25ddf06) | `FINALIZED`, `MAJORITY_AGREE`, GenVM `SUCCESS`; child transfer message sent to beneficiary |
+
+The final canonical `get_guard` read reports `status: paid_beneficiary`,
+`reason: paid_beneficiary`, `deposit: 0`, `settled_amount: 1000000000000000`,
+and beneficiary `0x8355d011e1fc874f3a91245711420d0c92cb3e47`. The first review
+also remains recorded as a safe retryable outcome where applicable; malformed
+model output never authorized payment.
 - The source includes bounded multi-party challenge records, global evidence-ID
   collision checks, committed-origin corroboration, sponsor-only blocked
   refunds, and safe challenge deadline finalization.
