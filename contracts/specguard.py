@@ -1,4 +1,4 @@
-# v0.4.0
+# v0.4.1
 # { "Depends": "py-genlayer:1jb45aa8ynh2a9c9xn3b7qqh8sm5q93hwfp7jqmwsfhh8jpz09h6" }
 """SpecGuard: hash-bound specification conformance with GEN escrow.
 
@@ -20,7 +20,7 @@ from urllib.parse import urlsplit
 from genlayer import Address, TreeMap, allow_storage, gl, u256
 
 
-VERSION = "0.4.0"
+VERSION = "0.4.1"
 EXPECTED = "[EXPECTED]"
 
 FUNDED = "funded"
@@ -434,14 +434,19 @@ def _fetch_spec(snapshot: dict) -> bytes:
     Its failure, including a hash mismatch, is therefore not itself a basis for
     sponsor recovery. Only exact bytes from either committed source proceed.
     """
+    failures = []
     try:
         return _fetch(snapshot["spec_url"], snapshot["spec_hash"], MAX_TEXT_BYTES)
-    except ValueError:
+    except ValueError as error:
+        failures.append(str(error))
         if not snapshot["spec_mirror_url"]:
-            raise ValueError("specification_unverified")
+            raise ValueError("specification_unavailable" if "fetch_unavailable" in failures else "specification_unverified")
     try:
         return _fetch(snapshot["spec_mirror_url"], snapshot["spec_hash"], MAX_TEXT_BYTES)
-    except ValueError:
+    except ValueError as error:
+        failures.append(str(error))
+        if "fetch_unavailable" in failures:
+            raise ValueError("specification_unavailable")
         raise ValueError("specification_unverified")
 
 
@@ -456,6 +461,32 @@ def _normalize(raw, policy: dict, source_index: dict) -> dict:
     if len(raw["criteria"]) != len(expected):
         raise ValueError("malformed_model_output")
     normalized, seen = [], set()
+
+    def has_independent_support(refs, minimum):
+        pairs = []
+        for ref in refs:
+            source = source_index.get(ref)
+            if not isinstance(source, dict):
+                return False
+            authority, origin = source.get("authority"), source.get("origin")
+            if not isinstance(authority, str) or not authority or not isinstance(origin, str) or not origin:
+                return False
+            pairs.append((authority, origin))
+
+        def match(position, authorities, origins):
+            if len(authorities) >= minimum:
+                return True
+            if len(pairs) - position < minimum - len(authorities):
+                return False
+            for index in range(position, len(pairs)):
+                authority, origin = pairs[index]
+                if authority not in authorities and origin not in origins:
+                    if match(index + 1, authorities | {authority}, origins | {origin}):
+                        return True
+            return False
+
+        return match(0, set(), set())
+
     for item in raw["criteria"]:
         if not isinstance(item, dict) or set(item) != {"id", "status", "evidence_ids", "rationale"}:
             raise ValueError("malformed_model_output")
@@ -470,7 +501,7 @@ def _normalize(raw, policy: dict, source_index: dict) -> dict:
         rationale = _clean(item.get("rationale", ""))
         if not rationale or len(rationale) > MAX_RATIONALE:
             raise ValueError("malformed_model_output")
-        if status == "pass" and len({source_index[ref]["authority"] for ref in refs}) < expected[identifier]["min_authorities"]:
+        if status == "pass" and not has_independent_support(refs, expected[identifier]["min_authorities"]):
             raise ValueError("insufficient_corroboration")
         normalized.append({"id": identifier, "status": status, "evidence_ids": refs, "rationale": rationale})
     confidence = raw.get("confidence")
@@ -518,12 +549,15 @@ def _prompt(snapshot: dict, spec: str, implementation: str, evidence: str, chall
 
 
 def _observe(snapshot: dict, challenge: bool = False) -> dict:
+    phase = "policy"
     try:
         policy = _policy(snapshot["acceptance_policy"])
         original = _manifest(snapshot["evidence_manifest"], policy)
         extra = _manifest(snapshot["challenge_manifest"], policy, True) if challenge else {"sources": []}
+        phase = "original_specification"
         spec = _fetch_spec(snapshot).decode("utf-8")
         maximum = MAX_IMAGE_BYTES if snapshot["artifact_kind"] == "image" else MAX_TEXT_BYTES
+        phase = "original_implementation"
         artifact = _fetch(snapshot["implementation_url"], snapshot["implementation_hash"], maximum)
         images, implementation = [], ""
         if snapshot["artifact_kind"] == "image":
@@ -533,7 +567,8 @@ def _observe(snapshot: dict, challenge: bool = False) -> dict:
         else:
             implementation = artifact.decode("utf-8")
         evidence, index, total = [], {}, 0
-        for source in original["sources"] + extra["sources"]:
+        phase = "original_evidence"
+        for source in original["sources"]:
             if source["id"] in index:
                 # Never let a challenge shadow an original commitment (or a
                 # prior challenge) in the model's evidence index.
@@ -551,18 +586,42 @@ def _observe(snapshot: dict, challenge: bool = False) -> dict:
                 if not _clean(text) or total > MAX_TOTAL_EVIDENCE_BYTES:
                     raise ValueError("evidence_too_large")
                 evidence.append("[" + source["id"] + "/" + source["authority"] + "] " + text)
+        phase = "challenge_evidence"
+        for source in extra["sources"]:
+            if source["id"] in index:
+                raise ValueError("evidence_id_collision")
+            raw = _fetch(source["url"], source["hash"], MAX_IMAGE_BYTES if source["artifact_type"] == "image" else MAX_TEXT_BYTES)
+            index[source["id"]] = source
+            if source["artifact_type"] == "image":
+                if not (raw.startswith(b"\x89PNG\r\n\x1a\n") or raw.startswith(b"\xff\xd8\xff")):
+                    raise ValueError("unsupported_image_format")
+                if len(images) >= 2:
+                    raise ValueError("too_many_images")
+                images.append(raw); evidence.append("[" + source["id"] + ": image attached]")
+            else:
+                text = raw.decode("utf-8"); total += len(raw)
+                if not _clean(text) or total > MAX_TOTAL_EVIDENCE_BYTES:
+                    raise ValueError("evidence_too_large")
+                evidence.append("[" + source["id"] + "/" + source["authority"] + "] " + text)
+        phase = "semantic_analysis"
         raw = gl.nondet.exec_prompt(_prompt(snapshot, spec, implementation, "\n".join(evidence), challenge), images=images, response_format="json")
         analysis = _normalize(raw, policy, index)
         critical = {item["id"] for item in policy["criteria"] if item["critical"]}
         return {"kind": "analysis", "analysis": analysis, "outcome": _outcome(analysis), "provenance": "verified",
                 "critical_failures": [item["id"] for item in analysis["criteria"] if item["id"] in critical and item["status"] == "fail"]}
     except UnicodeDecodeError:
-        return {"kind": "integrity", "reason": "invalid_utf8"}
+        if phase == "challenge_evidence":
+            return {"kind": "integrity", "scope": "challenge", "reason": "challenge_invalid_utf8"}
+        return {"kind": "integrity", "scope": "original", "reason": "original_invalid_utf8"}
     except ValueError as error:
         reason = str(error)
-        if reason in ("hash_mismatch", "empty_artifact", "artifact_too_large", "unsupported_image_format", "evidence_too_large", "too_many_images"):
-            return {"kind": "integrity", "reason": reason}
-        return {"kind": "infrastructure", "reason": reason[:64]}
+        integrity_reasons = ("hash_mismatch", "empty_artifact", "artifact_too_large", "unsupported_image_format", "evidence_too_large", "too_many_images", "specification_unverified")
+        if phase == "challenge_evidence" and reason in integrity_reasons:
+            return {"kind": "integrity", "scope": "challenge", "reason": "challenge_" + reason}
+        if phase in ("original_specification", "original_implementation", "original_evidence") and reason in integrity_reasons:
+            return {"kind": "integrity", "scope": "original", "reason": "original_" + reason}
+        scope = "challenge" if challenge else "original"
+        return {"kind": "infrastructure", "scope": scope, "reason": (phase + "_" + reason)[:64]}
     except Exception:
         return {"kind": "infrastructure", "reason": "observation_failure"}
 
@@ -695,6 +754,7 @@ class SpecGuard(gl.Contract):
         if row is None:
             raise gl.vm.UserError(f"{EXPECTED} Challenge not found")
         row["status"], row["reason"], row["outcome"] = status, str(reason)[:64], outcome
+        row["next_review_at"] = 0
         rows[index] = row
         self._save_challenge_rows(guard, rows)
 
@@ -734,6 +794,10 @@ class SpecGuard(gl.Contract):
         if challenge:
             if challenge_id:
                 self._record_challenge_result(guard, challenge_id, CHALLENGE_UNRESOLVED, reason)
+                rows, index, row = self._find_challenge(guard, challenge_id)
+                row["next_review_at"] = now + REVIEW_COOLDOWN
+                rows[index] = row
+                self._save_challenge_rows(guard, rows)
             guard.status, guard.reason, guard.challenge_next_review_at = CHALLENGED, reason[:64], u256(now + REVIEW_COOLDOWN)
             if int(guard.challenge_grace_used) < MAX_INFRASTRUCTURE_GRACE:
                 extension = min(REVIEW_COOLDOWN, MAX_INFRASTRUCTURE_GRACE - int(guard.challenge_grace_used))
@@ -780,9 +844,11 @@ class SpecGuard(gl.Contract):
         elif result.get("kind") == "analysis" and result.get("outcome") in (APPROVED, BLOCKED, RETRYABLE):
             self._apply_analysis(guard, result, now, challenge, challenge_id)
         elif result.get("kind") == "integrity":
-            if challenge:
+            if challenge and result.get("scope") == "challenge":
                 self._record_challenge_result(guard, challenge_id, CHALLENGE_INVALID, str(result.get("reason", "challenge_integrity_failure")))
                 guard.status, guard.reason = CHALLENGED, "challenge_invalid"
+            elif challenge:
+                self._retry(guard, now, str(result.get("reason", "original_integrity_failure")), True, challenge_id)
             else:
                 guard.preliminary_status, guard.status = PRELIMINARY_BLOCKED, PRELIMINARY_BLOCKED
                 guard.reason = str(result.get("reason", "integrity_failure"))[:64]
@@ -837,7 +903,7 @@ class SpecGuard(gl.Contract):
         clean_summary = _bounded(summary, "challenge summary", MAX_SUMMARY)
         rows.append({"id": challenge_id, "challenger": sender, "manifest": canonical_manifest,
                      "summary": clean_summary, "status": CHALLENGE_SUBMITTED, "outcome": "",
-                     "reason": "", "submitted_at": now})
+                     "reason": "", "submitted_at": now, "next_review_at": 0})
         self._save_challenge_rows(guard, rows)
         # Keep legacy singular fields populated for existing clients.
         guard.challenge_id, guard.challenger = challenge_id, sender
@@ -847,12 +913,14 @@ class SpecGuard(gl.Contract):
     @gl.public.write
     def review_challenge(self, guard_id: str) -> None:
         guard, now = self._get(guard_id), _now()
-        if guard.status != CHALLENGED or now >= int(guard.challenge_deadline) or now < int(guard.challenge_next_review_at):
+        if guard.status != CHALLENGED or now >= int(guard.challenge_deadline):
             raise gl.vm.UserError(f"{EXPECTED} Challenge is not reviewable")
         if not any(_same_address(gl.message.sender_address, role) for role in (guard.sponsor, guard.beneficiary, guard.consumer)):
             raise gl.vm.UserError(f"{EXPECTED} Caller is not authorized to review")
         rows = _challenge_rows(guard.challenge_records)
-        selected = next((row for row in rows if row.get("status") in (CHALLENGE_SUBMITTED, CHALLENGE_UNDER_REVIEW)), None)
+        selected = next((row for row in rows
+                         if row.get("status") in (CHALLENGE_SUBMITTED, CHALLENGE_UNDER_REVIEW)
+                         or (row.get("status") == CHALLENGE_UNRESOLVED and now >= int(row.get("next_review_at", 0)))), None)
         if selected is None:
             raise gl.vm.UserError(f"{EXPECTED} No pending challenge")
         selected["status"] = CHALLENGE_UNDER_REVIEW

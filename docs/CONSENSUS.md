@@ -1,10 +1,16 @@
-# Consensus and equivalence (v0.4.0 source)
+# Consensus and equivalence (v0.4.1 source)
 
 Each call to `review` or `review_challenge` copies persisted fields into an
 in-memory snapshot before `run_nondet_unsafe`. The leader and every validator
 then independently fetch committed specification, implementation, and evidence
 bytes; verify hashes and source-policy coverage; and ask the model for bounded
 criterion results.
+
+For each passing criterion, only the evidence IDs actually cited by the model
+are considered. The cited references must contain a deterministic matching of
+the policy minimum in which both the declared authority and normalized HTTPS
+origin are unique. Global manifest counts or uncited sources cannot satisfy this
+requirement.
 
 Equivalence requires the same result kind. For an analysis it requires the same
 final outcome, the same `(criterion_id, status)` mapping, the same critical
@@ -25,3 +31,10 @@ contradiction of the original preliminary outcome. Invalid, abandoned,
 rejected, or unresolved records preserve that original outcome at the deadline.
 Evidence IDs are globally unique across the original and challenge manifests,
 so a challenge cannot shadow an earlier source in the validator's index.
+
+Observation failures retain their scope. Original specification,
+implementation, or evidence failures during a challenge are retryable
+original-source failures and preserve the preliminary decision. A deterministic
+hash/encoding failure in challenge counterevidence marks only that challenge
+invalid; a provider or consensus outage leaves that challenge unresolved and
+retryable after its cooldown.

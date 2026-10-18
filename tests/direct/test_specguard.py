@@ -17,9 +17,9 @@ EVIDENCE_2_URL = "https://audit.example.edu/record.txt"
 EVIDENCE_2 = b"Independent audit record confirms the release report passed security regression tests."
 
 
-def policy(challenge_window=3600):
+def policy(challenge_window=3600, min_authorities=2):
     return json.dumps({"criteria": [{"id": "C1", "description": "The report states security regression tests passed.",
-                                      "critical": True, "min_authorities": 2,
+                                      "critical": True, "min_authorities": min_authorities,
                                       "satisfaction_rule": "evidence_supports_requirement"}],
                        "challenge_window": challenge_window})
 
@@ -110,7 +110,7 @@ def test_create_accept_submit_persists_commitments(direct_vm, direct_deploy, dir
     assert row.beneficiary.as_hex.lower() == address(direct_bob).lower()
     assert row.consumer.as_hex.lower() == address(direct_charlie).lower()
     assert int(row.deposit) == 10**15
-    assert contract.get_info()["version"] == "0.4.0"
+    assert contract.get_info()["version"] == "0.4.1"
 
 
 @pytest.mark.parametrize("field,value", [

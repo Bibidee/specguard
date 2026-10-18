@@ -5,6 +5,7 @@ import pytest
 
 from .test_specguard import (
     CONTRACT,
+    EVIDENCE_2,
     IMPLEMENTATION,
     SPEC,
     active_contract,
@@ -30,6 +31,27 @@ def _challenge_manifest(prefix: str, first: bytes, second: bytes) -> str:
          "url": "https://" + prefix.lower() + ".archive.example.edu/counter.txt", "hash": digest(second),
          "criteria": ["C1"], "metadata": "Independent corroboration"},
     ]})
+
+
+def _cited_manifest(rows) -> str:
+    return json.dumps({"sources": [
+        {"id": identifier, "authority": authority, "artifact_type": "record", "url": url,
+         "hash": digest(body), "criteria": ["C1"], "metadata": "Committed fixture"}
+        for identifier, authority, url, body in rows
+    ]})
+
+
+def _policy_with_minimum(minimum: int) -> str:
+    return json.dumps({"criteria": [{"id": "C1", "description": "The committed reports support the requirement.",
+                                      "critical": True, "min_authorities": minimum,
+                                      "satisfaction_rule": "evidence_supports_requirement"}],
+                       "challenge_window": 3600})
+
+
+def _wire_extra_evidence(direct_vm, rows, answer):
+    for _, _, url, body in rows:
+        direct_vm.mock_web(url.replace("https://", ""), {"status": 200, "body": body})
+    direct_vm.mock_llm(r"Independently assess the hash-bound acceptance criteria", json.dumps(answer))
 
 
 def _advance_to_challenge_deadline(contract, direct_vm, guard_id="SG-001"):
@@ -143,13 +165,146 @@ def test_authenticated_provenance_policy_is_rejected_until_runtime_support_exist
 
 def test_same_origin_cannot_satisfy_independence_with_different_labels(direct_vm, direct_deploy, direct_alice, direct_bob, direct_charlie):
     contract = deploy(direct_vm, direct_deploy, direct_alice)
+    create(contract, direct_vm, direct_alice, direct_bob, direct_charlie)
+    direct_vm.sender = direct_bob
+    contract.accept_guard("SG-001")
     same_origin = json.loads(manifest())
     same_origin["sources"][0]["authority"] = "first-label.example.com"
     same_origin["sources"][0]["url"] = "https://shared.example.com/one.txt"
     same_origin["sources"][1]["authority"] = "second-label.example.com"
     same_origin["sources"][1]["url"] = "https://shared.example.com/two.txt"
     with direct_vm.expect_revert():
-        create(contract, direct_vm, direct_alice, direct_bob, direct_charlie, evidence_manifest=json.dumps(same_origin))
+        submit(contract, direct_vm, direct_bob, evidence_manifest=json.dumps(same_origin))
+    row = contract.get_guard("SG-001")
+    assert row.status == "active" and row.implementation_url == ""
+    submit(contract, direct_vm, direct_bob, evidence_manifest=manifest())
+    assert contract.get_guard("SG-001").status == "submitted"
+
+
+def test_cited_evidence_must_have_mutually_independent_authority_origin_pairs(direct_vm, direct_deploy, direct_alice, direct_bob, direct_charlie):
+    contract = deploy(direct_vm, direct_deploy, direct_alice)
+    rows = [
+        ("EV1", "authority-a.example", "https://shared.example.com/one.txt", b"one"),
+        ("EV2", "authority-b.example", "https://shared.example.com/two.txt", b"two"),
+        ("EV3", "authority-c.example", "https://independent.example.net/three.txt", b"three"),
+    ]
+    create(contract, direct_vm, direct_alice, direct_bob, direct_charlie,
+           acceptance_policy=_policy_with_minimum(2))
+    direct_vm.sender = direct_bob
+    contract.accept_guard("SG-001")
+    submit(contract, direct_vm, direct_bob, evidence_manifest=_cited_manifest(rows))
+    direct_vm.mock_web(r"spec\.example\.org/contract\.txt", {"status": 200, "body": SPEC})
+    direct_vm.mock_web(r"build\.example\.net/result\.txt", {"status": 200, "body": IMPLEMENTATION})
+    direct_vm.mock_web(r"shared\.example\.com/one\.txt", {"status": 200, "body": b"one"})
+    direct_vm.mock_web(r"shared\.example\.com/two\.txt", {"status": 200, "body": b"two"})
+    direct_vm.mock_web(r"independent\.example\.net/three\.txt", {"status": 200, "body": b"three"})
+    direct_vm.mock_llm(r"Independently assess the hash-bound acceptance criteria", json.dumps({
+        "criteria": [{"id": "C1", "status": "pass", "evidence_ids": ["EV1", "EV2"], "rationale": "Two cited labels share one origin."}],
+        "confidence": 99, "rationale": "The cited sources are not independently hosted."}))
+    direct_vm.sender = direct_alice
+    contract.review("SG-001")
+    row = contract.get_guard("SG-001")
+    assert row.status == "retryable" and row.reason == "semantic_analysis_insufficient_corroboration"
+
+    # A leader cannot override the same deterministic insufficiency detected by
+    # the validator; the guard remains non-authorizing.
+    direct_vm._datetime = datetime.fromtimestamp(int(row.next_review_at), timezone.utc).isoformat().replace("+00:00", "Z")
+    direct_vm.clear_mocks()
+    direct_vm.mock_web(r"spec\.example\.org/contract\.txt", {"status": 200, "body": SPEC})
+    direct_vm.mock_web(r"build\.example\.net/result\.txt", {"status": 200, "body": IMPLEMENTATION})
+    direct_vm.mock_web(r"shared\.example\.com/one\.txt", {"status": 200, "body": b"one"})
+    direct_vm.mock_web(r"shared\.example\.com/two\.txt", {"status": 200, "body": b"two"})
+    direct_vm.mock_web(r"independent\.example\.net/three\.txt", {"status": 200, "body": b"three"})
+    direct_vm.mock_llm(r"Independently assess the hash-bound acceptance criteria", json.dumps({
+        "criteria": [{"id": "C1", "status": "pass", "evidence_ids": ["EV1", "EV3"], "rationale": "The cited sources use two origins."}],
+        "confidence": 92, "rationale": "The cited sources are independently hosted."}))
+    contract.review("SG-001")
+    assert contract.get_guard("SG-001").status == "preliminary_approved"
+
+
+def test_global_independence_counts_cannot_fake_three_source_matching(direct_vm, direct_deploy, direct_alice, direct_bob, direct_charlie):
+    contract = deploy(direct_vm, direct_deploy, direct_alice)
+    rows = [
+        ("EV1", "authority-a.example", "https://origin-x.example/one.txt", b"one"),
+        ("EV2", "authority-b.example", "https://origin-x.example/two.txt", b"two"),
+        ("EV3", "authority-c.example", "https://origin-y.example/three.txt", b"three"),
+        ("EV4", "authority-c.example", "https://origin-z.example/four.txt", b"four"),
+    ]
+    create(contract, direct_vm, direct_alice, direct_bob, direct_charlie,
+           acceptance_policy=_policy_with_minimum(3))
+    direct_vm.sender = direct_bob
+    contract.accept_guard("SG-001")
+    submit(contract, direct_vm, direct_bob, evidence_manifest=_cited_manifest(rows))
+    for _, _, url, body in rows:
+        direct_vm.mock_web(url.replace("https://", ""), {"status": 200, "body": body})
+    direct_vm.mock_llm(r"Independently assess the hash-bound acceptance criteria", json.dumps({
+        "criteria": [{"id": "C1", "status": "pass", "evidence_ids": ["EV1", "EV2", "EV3", "EV4"], "rationale": "All globally distinct labels and origins are cited."}],
+        "confidence": 98, "rationale": "The global counts appear sufficient."}))
+    direct_vm.sender = direct_alice
+    contract.review("SG-001")
+    assert contract.get_guard("SG-001").status == "retryable"
+
+
+def test_challenge_provider_retry_can_be_recovered_and_substantiated(direct_vm, direct_deploy, direct_alice, direct_bob, direct_charlie):
+    contract = active_contract(direct_vm, direct_deploy, direct_alice, direct_bob, direct_charlie)
+    wire_mocks(direct_vm)
+    direct_vm.sender = direct_alice
+    contract.review("SG-001")
+    counter_manifest = _challenge_manifest("RETRY", b"counter one", b"counter two")
+    direct_vm.sender = direct_charlie
+    contract.challenge("SG-001", "RETRY-001", counter_manifest, "Counterevidence is materially contradictory")
+    direct_vm.mock_web(r"retry\.incident\.example\.net/counter\.txt", {"status": 503, "body": b"outage"})
+    direct_vm.mock_web(r"retry\.archive\.example\.edu/counter\.txt", {"status": 503, "body": b"outage"})
+    direct_vm.sender = direct_alice
+    contract.review_challenge("SG-001")
+    row = contract.get_guard("SG-001")
+    challenge_rows = json.loads(row.challenge_records)
+    assert row.status == "challenged" and challenge_rows[0]["status"] == "unresolved"
+
+    direct_vm._datetime = datetime.fromtimestamp(int(challenge_rows[0]["next_review_at"]), timezone.utc).isoformat().replace("+00:00", "Z")
+    direct_vm.clear_mocks()
+    wire_mocks(direct_vm, {"criteria": [{"id": "C1", "status": "fail", "evidence_ids": ["RETRY1", "RETRY2"], "rationale": "The counterevidence contradicts the requirement."}],
+                            "confidence": 94, "rationale": "The committed counterevidence is materially contradictory."})
+    direct_vm.mock_web(r"retry\.incident\.example\.net/counter\.txt", {"status": 200, "body": b"counter one"})
+    direct_vm.mock_web(r"retry\.archive\.example\.edu/counter\.txt", {"status": 200, "body": b"counter two"})
+    direct_vm.mock_llm(r"Independently assess the hash-bound acceptance criteria", json.dumps({
+        "criteria": [{"id": "C1", "status": "fail", "evidence_ids": ["RETRY1", "RETRY2"], "rationale": "The counterevidence contradicts the requirement."}],
+        "confidence": 94, "rationale": "The committed counterevidence is materially contradictory."}))
+    contract.review_challenge("SG-001")
+    row = contract.get_guard("SG-001")
+    assert row.status == "challenged" and json.loads(row.challenge_records)[0]["status"] == "substantiated"
+    direct_vm._datetime = datetime.fromtimestamp(int(row.challenge_deadline), timezone.utc).isoformat().replace("+00:00", "Z")
+    contract.finalize_preliminary("SG-001")
+    assert contract.get_guard("SG-001").status == "blocked"
+    direct_vm.sender = direct_charlie
+    with direct_vm.expect_revert():
+        contract.refund_blocked("SG-001")
+    direct_vm.sender = direct_alice
+    contract.refund_blocked("SG-001")
+    assert int(contract.get_guard("SG-001").deposit) == 0
+
+
+def test_original_failure_during_challenge_is_retryable_not_challenge_invalid(direct_vm, direct_deploy, direct_alice, direct_bob, direct_charlie):
+    contract = active_contract(direct_vm, direct_deploy, direct_alice, direct_bob, direct_charlie)
+    wire_mocks(direct_vm)
+    direct_vm.sender = direct_alice
+    contract.review("SG-001")
+    counter_manifest = _challenge_manifest("ORIG", b"counter one", b"counter two")
+    direct_vm.sender = direct_charlie
+    contract.challenge("SG-001", "ORIG-001", counter_manifest, "Original evidence became unavailable")
+    direct_vm.clear_mocks()
+    direct_vm.mock_web(r"spec\.example\.org/contract\.txt", {"status": 200, "body": SPEC})
+    direct_vm.mock_web(r"build\.example\.net/result\.txt", {"status": 200, "body": IMPLEMENTATION})
+    direct_vm.mock_web(r"evidence\.example\.com/proof\.txt", {"status": 503, "body": b"outage"})
+    direct_vm.mock_web(r"audit\.example\.edu/record\.txt", {"status": 200, "body": EVIDENCE_2})
+    direct_vm.mock_web(r"orig\.incident\.example\.net/counter\.txt", {"status": 200, "body": b"counter one"})
+    direct_vm.mock_web(r"orig\.archive\.example\.edu/counter\.txt", {"status": 200, "body": b"counter two"})
+    direct_vm.sender = direct_alice
+    contract.review_challenge("SG-001")
+    row = contract.get_guard("SG-001")
+    challenge_row = json.loads(row.challenge_records)[0]
+    assert row.status == "challenged" and row.preliminary_status == "preliminary_approved"
+    assert challenge_row["status"] == "unresolved" and "original_evidence" in row.reason
 
 
 def test_unauthorized_refund_and_expiry_cannot_move_escrow(direct_vm, direct_deploy, direct_alice, direct_bob, direct_charlie, direct_owner):
