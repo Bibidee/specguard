@@ -1,5 +1,13 @@
 # Deployment status
 
+## v0.3.0 — release candidate, not deployed
+
+The repository source now contains the criterion-level, corroborated,
+challenge-aware v0.3.0 release candidate. It has **no StudioNet address,
+deployment transaction, source-parity claim, or live lifecycle claim yet**.
+The v0.2.2 evidence below is retained as historical evidence for its exact
+source only and must never be presented as evidence for v0.3.0.
+
 ## Historical v0.1.0 — superseded; do not use
 
 The initial v0.1.0 deployment finalized on StudioNet at

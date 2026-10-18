@@ -1,24 +1,31 @@
 # SpecGuard
 
+> **v0.3.0 is a new, undeployed release candidate.** The StudioNet v0.2.2
+> address below remains historical evidence for v0.2.2 only; it is not source
+> parity evidence for this upgraded contract.
+
 SpecGuard is a standalone GenLayer Intelligent Contract primitive for releasing
-an escrowed conformance bond when an implementation demonstrably satisfies an
-exact, hash-bound specification. It is designed for software releases,
-vendor deliverables, security remediations, AI-generated outputs, and any
-workflow where a downstream consumer should receive a one-time consensus-backed
-approval only after evidence has been verified.
+an escrowed conformance bond only after a hash-bound implementation satisfies a
+precommitted, criterion-level acceptance policy with corroborated evidence. It
+is designed for software releases, vendor deliverables, security remediations,
+and any workflow where a downstream consumer needs a one-time, consensus-backed
+authorization gate.
 
 ## What it does
 
-1. A sponsor creates and funds a specification escrow with a fixed specification
-   URL and SHA-256 digest.
-2. The nominated beneficiary accepts, then submits an implementation artifact,
-   supporting evidence, and their SHA-256 digests.
-3. Independent GenLayer validators fetch the exact committed bytes, verify the
-   digests before decoding, and assess conformance.
-4. A bounded consensus result becomes `approved`, `blocked`, or `retryable`.
-5. The designated consumer has a seven-day exclusive approved-settlement
-   period. If it disappears, only the beneficiary can settle after that period;
-   the sponsor can never reclaim an approved guard.
+1. A sponsor funds a guard with an immutable JSON policy containing stable
+   criterion IDs, descriptions, criticality, corroboration thresholds, and a
+   bounded challenge window.
+2. The beneficiary accepts, then commits an implementation and evidence manifest
+   that binds source IDs, declared authorities, URLs, SHA-256 digests, metadata,
+   and applicable criteria.
+3. Independent GenLayer validators re-fetch every relevant byte stream, verify
+   commitments, enforce provenance coverage, and independently derive a
+   criterion-level result.
+4. A preliminary result enters a bounded challenge period. One affected party
+   may submit committed counterevidence; that review can overturn the result.
+5. Only a final approved guard can pay the beneficiary, and only its designated
+   consumer has the initial settlement right.
 
 SpecGuard is an escrow primitive, not a deployment platform. It does not prove
 real-world identity, make external systems execute a change, authenticate an
@@ -31,24 +38,27 @@ HTTPS publisher, or guarantee an LLM judgment is correct.
   and all numeric IP-literal authorities.
 - Artifact text and visible image text are quoted as untrusted data; embedded
   instructions are never reviewer instructions.
-- Approval requires `spec_match=yes`, `evidence_support=yes`, `risk=no`, and
-  confidence at least 75 from independently equivalent validator observations.
-- Validators agree on the deterministic authorization outcome, not free-form
-  rationale. Any outcome disagreement fails consensus; varying rationale cannot
-  turn a blocked or retryable review into an approval.
+- Every policy criterion must be `pass`; any `fail` blocks authorization, while
+  `unclear`, missing, unavailable, or low-confidence assessment is retryable.
+- A passing criterion must cite the policy's minimum number of distinct
+  **declared** authorities. A mirror or two URLs declared under one authority
+  count once, and declarations do not prove real-world identity.
+- Validators agree on criterion statuses, critical failures, provenance state,
+  final outcome, and confidence within 20 points—not free-form rationale.
 - Every payout uses a single transfer helper and follows debit-in-storage,
   persist-state, then emit-transfer ordering.
 
 ## Lifecycle
 
-`funded -> active -> submitted -> approved -> paid_beneficiary`
+`funded -> active -> submitted -> preliminary_approved -> approved -> paid_beneficiary`
 
-`submitted -> blocked -> refunded_sponsor`
+`submitted -> preliminary_blocked -> blocked -> refunded_sponsor`
 
-`submitted <-> retryable`, followed by `expire -> refunded_sponsor` if the
-review deadline passes. A sponsor may cancel only before beneficiary acceptance.
+`preliminary_* -> challenged -> approved | blocked | retryable`, followed by a
+safe sponsor refund if a review or material challenge reaches its bounded
+deadline unresolved. A sponsor may cancel only before beneficiary acceptance.
 
-v0.2.2 also lets the beneficiary register one HTTPS specification mirror while
+SpecGuard also lets the beneficiary register one HTTPS specification mirror while
 the guard is active. It is used whenever the sponsor-controlled primary cannot
 verify against the original SHA-256, including a substituted response. Neither
 source can authorize a review unless its bytes match that commitment; if both
@@ -66,6 +76,18 @@ python -m pip install -r requirements.txt
 python -m pytest tests -q
 python scripts/preflight.py
 ```
+
+See [the design](docs/DESIGN.md), [security model](docs/SECURITY.md),
+[consensus rules](docs/CONSENSUS.md), and [test matrix](docs/TESTING.md).
+
+## What GenLayer adds
+
+Without independent validators, the party running one off-chain model could
+selectively accept convenient evidence and release escrow. Here, leader and
+validators independently retrieve the committed materials and must agree on the
+criterion-level authorization consequence before any application state can
+become payable. The contract still does not guarantee that web publishers,
+declared authorities, models, or providers are truthful or available.
 
 ## StudioNet release evidence — v0.2.2
 

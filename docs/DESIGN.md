@@ -1,5 +1,34 @@
 # SpecGuard design
 
+> The sections below describe historical v0.2.2 behavior where noted. The
+> current source is v0.3.0 and its criterion, provenance, challenge, and
+> liveness policy is authoritative for a future deployment.
+
+## v0.3 acceptance policy and challenge lifecycle
+
+At `create_guard`, the sponsor commits canonical JSON containing 1–8 immutable
+criteria. Each has a stable ID, bounded description, explicit rule
+`evidence_supports_requirement`, criticality, and a minimum count of distinct
+declared authorities. The beneficiary must submit a manifest binding each
+evidence record to criterion IDs, URL, SHA-256, source type, metadata, and its
+declared authority. The contract rejects missing coverage before review.
+
+An initial review stores only `preliminary_approved` or
+`preliminary_blocked`; neither is payable. During the immutable policy's
+challenge window, an affected role may submit one distinct counterevidence
+manifest. Validators then reassess the original material plus counterevidence.
+That result can reverse the preliminary outcome. A challenged guard cannot pay;
+on the bounded deadline it follows the safe refund terminal path. This is an
+application-level challenge, not a mutation of GenLayer's native appeal model.
+
+## v0.3 liveness rule
+
+Both review and challenge infrastructure failures receive a 15-minute cooldown
+and a matching deadline extension, capped at seven days. This corrects the
+v0.2.2 near-deadline cooldown problem while retaining a finite termination path.
+Semantic uncertainty never becomes approval, and no provider outage produces a
+beneficiary payout.
+
 ## Consensus boundary
 
 SpecGuard copies all storage-backed inputs into a plain in-memory snapshot

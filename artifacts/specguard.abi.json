@@ -28,6 +28,30 @@
       "ret": "null",
       "payable": false
     },
+    "challenge": {
+      "params": [
+        [
+          "guard_id",
+          "string"
+        ],
+        [
+          "challenge_id",
+          "string"
+        ],
+        [
+          "counterevidence_manifest",
+          "string"
+        ],
+        [
+          "summary",
+          "string"
+        ]
+      ],
+      "kwparams": {},
+      "readonly": false,
+      "ret": "null",
+      "payable": false
+    },
     "create_guard": {
       "params": [
         [
@@ -61,6 +85,10 @@
         [
           "review_window",
           "int"
+        ],
+        [
+          "acceptance_policy",
+          "string"
         ]
       ],
       "kwparams": {},
@@ -69,6 +97,18 @@
       "payable": true
     },
     "expire": {
+      "params": [
+        [
+          "guard_id",
+          "string"
+        ]
+      ],
+      "kwparams": {},
+      "readonly": false,
+      "ret": "null",
+      "payable": false
+    },
+    "finalize_preliminary": {
       "params": [
         [
           "guard_id",
@@ -97,6 +137,8 @@
         "brief": "string",
         "spec_url": "string",
         "spec_hash": "string",
+        "acceptance_policy": "string",
+        "policy_hash": "string",
         "created_at": "int",
         "deliver_by": "int",
         "review_window": "int",
@@ -106,6 +148,7 @@
         "implementation_hash": "string",
         "evidence_url": "string",
         "evidence_hash": "string",
+        "evidence_manifest": "string",
         "submission_summary": "string",
         "status": "string",
         "confidence": "int",
@@ -117,7 +160,15 @@
         "next_review_at": "int",
         "consumer_settle_after": "int",
         "spec_mirror_url": "string",
-        "infrastructure_grace_used": "int"
+        "infrastructure_grace_used": "int",
+        "preliminary_status": "string",
+        "challenge_deadline": "int",
+        "challenge_id": "string",
+        "challenger": "string",
+        "challenge_manifest": "string",
+        "challenge_summary": "string",
+        "challenge_next_review_at": "int",
+        "challenge_grace_used": "int"
       }
     },
     "get_info": {
@@ -139,6 +190,18 @@
       "payable": false
     },
     "review": {
+      "params": [
+        [
+          "guard_id",
+          "string"
+        ]
+      ],
+      "kwparams": {},
+      "readonly": false,
+      "ret": "null",
+      "payable": false
+    },
+    "review_challenge": {
       "params": [
         [
           "guard_id",
@@ -209,11 +272,7 @@
           "string"
         ],
         [
-          "evidence_url",
-          "string"
-        ],
-        [
-          "evidence_hash",
+          "evidence_manifest",
           "string"
         ],
         [
