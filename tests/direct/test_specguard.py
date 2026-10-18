@@ -110,7 +110,7 @@ def test_create_accept_submit_persists_commitments(direct_vm, direct_deploy, dir
     assert row.beneficiary.as_hex.lower() == address(direct_bob).lower()
     assert row.consumer.as_hex.lower() == address(direct_charlie).lower()
     assert int(row.deposit) == 10**15
-    assert contract.get_info()["version"] == "0.3.0"
+    assert contract.get_info()["version"] == "0.4.0"
 
 
 @pytest.mark.parametrize("field,value", [
@@ -343,7 +343,7 @@ def test_validator_disagreement_rejects_approval_equivalence(direct_vm, direct_d
     direct_vm.sender = direct_alice
     contract.review("SG-001")
     direct_vm.clear_mocks()
-    wire_mocks(direct_vm, {"spec_match": "no", "evidence_support": "yes", "risk": "no", "confidence": 92, "rationale": "The implementation omits the required statement."})
+    wire_mocks(direct_vm, {"criteria": [{"id": "C1", "status": "fail", "evidence_ids": ["EV1"], "rationale": "The implementation omits the requirement."}], "confidence": 92, "rationale": "The implementation omits the required statement."})
     assert direct_vm.run_validator() is False
 
 
@@ -447,6 +447,9 @@ def test_valid_challenge_reverses_preliminary_approval_and_blocks_settlement(dir
     direct_vm.mock_web(r"archive\.example\.edu/counter\.txt", {"status": 200, "body": counter_2})
     direct_vm.sender = direct_alice
     contract.review_challenge("SG-001")
+    assert contract.get_guard("SG-001").status == "challenged"
+    direct_vm._datetime = datetime.fromtimestamp(int(contract.get_guard("SG-001").challenge_deadline), timezone.utc).isoformat().replace("+00:00", "Z")
+    contract.finalize_preliminary("SG-001")
     assert contract.get_guard("SG-001").status == "blocked"
     contract.refund_blocked("SG-001")
     assert contract.get_guard("SG-001").status == "refunded_sponsor"
@@ -464,10 +467,12 @@ def test_duplicate_and_stale_challenges_are_rejected(direct_vm, direct_deploy, d
         contract.challenge("SG-001", "CH-002", counter_manifest, "Replay")
     row = contract.get_guard("SG-001")
     direct_vm._datetime = datetime.fromtimestamp(int(row.challenge_deadline), timezone.utc).isoformat().replace("+00:00", "Z")
-    # Outstanding material challenge may only resolve to the safe sponsor refund.
+    # An unreviewed challenge preserves the original preliminary decision and
+    # never manufactures a sponsor refund.
     direct_vm.sender = direct_alice
     contract.expire("SG-001")
-    assert contract.get_guard("SG-001").status == "refunded_sponsor"
+    assert contract.get_guard("SG-001").status == "approved"
+    assert int(contract.get_guard("SG-001").deposit) == 10**15
 
 
 def test_validator_cannot_equate_approval_with_critical_failure(direct_vm, direct_deploy, direct_alice, direct_bob, direct_charlie):
@@ -495,6 +500,9 @@ def test_challenge_can_reverse_preliminary_rejection_to_final_approval(direct_vm
     direct_vm.mock_web(r"archive\.example\.edu/counter\.txt", {"status": 200, "body": counter_2})
     direct_vm.sender = direct_charlie
     contract.review_challenge("SG-001")
+    assert contract.get_guard("SG-001").status == "challenged"
+    direct_vm._datetime = datetime.fromtimestamp(int(contract.get_guard("SG-001").challenge_deadline), timezone.utc).isoformat().replace("+00:00", "Z")
+    contract.finalize_preliminary("SG-001")
     assert contract.get_guard("SG-001").status == "approved"
 
 

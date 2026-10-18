@@ -1,6 +1,19 @@
 # Deployment status
 
-## Canonical v0.3.0 — verified
+## Current v0.4.0 remediation source — not deployed
+
+- Source version: `0.4.0`
+- Deployment status: **undeployed**; no new address or transaction is claimed.
+- Local release gate: **45 tests passed**, GenVM lint PASS, ABI/schema PASS, and
+  preflight PASS.
+- Current contract SHA-256: `e85810806c942c4c9f4abeb164400b52ba0a79a89e396afd24a7aae1e9b5565f`
+- The source includes bounded multi-party challenge records, global evidence-ID
+  collision checks, committed-origin corroboration, sponsor-only blocked
+  refunds, and safe challenge deadline finalization.
+- Deployment requires a separately authorized transaction after the complete
+  release gate and a fresh `gen_getContractCode` byte-for-byte parity check.
+
+## Historical v0.3.0 — verified; superseded by the v0.4.0 source
 
 - Frozen contract-source commit: `d68374aa4ea41a4f685e23cdb66f9f978ce279c9`
 - Fixture/documentation commit used for live artifacts: `23ec793d6dba5ddc65890fd448d2f72d961f8e27`
@@ -37,14 +50,14 @@ declared authorities to corroborate criterion `C1`.
 | Settle | [`0xbe191925340264d5ba35b8384e763aacf5c2a1d2980d047e41b1969b62855d15`](https://explorer-studio.genlayer.com/tx/0xbe191925340264d5ba35b8384e763aacf5c2a1d2980d047e41b1969b62855d15) | `FINALIZED`, `MAJORITY_AGREE`, GenVM `SUCCESS`; designated consumer settled 0.001 GEN |
 | Child transfer | [`0x4a16cba604761b8d63202be10c219eb262146d3986b450a561024f8e51583f9a`](https://explorer-studio.genlayer.com/tx/0x4a16cba604761b8d63202be10c219eb262146d3986b450a561024f8e51583f9a) | `FINALIZED`, beneficiary credited `1000000000000000` wei with `value_credited: true` |
 
-The canonical final read reports `status: paid_beneficiary`,
+The historical final read reports `status: paid_beneficiary`,
 `reason: paid_beneficiary`, `deposit: 0`, and
 `settled_amount: 1000000000000000`. The evidence sources use two declared
 authority labels for the controlled lifecycle proof; these labels do not prove
 independent real-world publisher identity.
 
 All sections below are historical and are retained only for the exact source
-versions they describe. They are not current deployment evidence for v0.3.0.
+versions they describe. They are not current deployment evidence for v0.4.0.
 
 ## Historical v0.1.0 — superseded; do not use
 
@@ -122,7 +135,7 @@ runtime objects and was rejected. The rejected write did not modify escrow
 state. v0.2.2 corrected authorization comparisons using canonical address text
 and is the only canonical release documented below.
 
-## Canonical v0.2.2 — verified
+## Historical v0.2.2 — verified; superseded
 
 - Source commit: `f666b362a368906af151bb93822f3c55879b0f17`
 - Raw source SHA-256: `54087ad83eb2e639193ae09278eb503b60592b92c23584266d168ebc2d67ed8c`

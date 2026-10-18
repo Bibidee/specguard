@@ -1,8 +1,8 @@
 # SpecGuard
 
-> **v0.3.0 is the canonical verified StudioNet release.** Its frozen source,
-> deployment, byte-for-byte source parity, and live approved settlement are
-> recorded below. Earlier deployments remain historical only.
+> **v0.4.0 is the current remediation source.** It is locally and CI verified
+> but intentionally not deployed. The v0.3.0 deployment below is historical
+> only; no address is presented as a v0.4.0 deployment.
 
 SpecGuard is a standalone GenLayer Intelligent Contract primitive for releasing
 an escrowed conformance bond only after a hash-bound implementation satisfies a
@@ -22,8 +22,9 @@ authorization gate.
 3. Independent GenLayer validators re-fetch every relevant byte stream, verify
    commitments, enforce provenance coverage, and independently derive a
    criterion-level result.
-4. A preliminary result enters a bounded challenge period. One affected party
-   may submit committed counterevidence; that review can overturn the result.
+4. A preliminary result enters a bounded challenge period. Up to three
+   distinct affected roles may submit committed counterevidence; only a
+   reviewed, independently substantiated contradiction can overturn the result.
 5. Only a final approved guard can pay the beneficiary, and only its designated
    consumer has the initial settlement right.
 
@@ -41,8 +42,11 @@ HTTPS publisher, or guarantee an LLM judgment is correct.
 - Every policy criterion must be `pass`; any `fail` blocks authorization, while
   `unclear`, missing, unavailable, or low-confidence assessment is retryable.
 - A passing criterion must cite the policy's minimum number of distinct
-  **declared** authorities. A mirror or two URLs declared under one authority
-  count once, and declarations do not prove real-world identity.
+  **declared authorities and committed HTTPS origins**. A mirror or two URLs
+  on one origin count once, and declarations do not prove real-world identity.
+- Authenticated publisher provenance is explicitly unsupported by the current
+  GenVM API; a policy requesting it is rejected instead of being treated as
+  authenticated by assertion.
 - Validators agree on criterion statuses, critical failures, provenance state,
   final outcome, and confidence within 20 points—not free-form rationale.
 - Every payout uses a single transfer helper and follows debit-in-storage,
@@ -54,9 +58,11 @@ HTTPS publisher, or guarantee an LLM judgment is correct.
 
 `submitted -> preliminary_blocked -> blocked -> refunded_sponsor`
 
-`preliminary_* -> challenged -> approved | blocked | retryable`, followed by a
-safe sponsor refund if a review or material challenge reaches its bounded
-deadline unresolved. A sponsor may cancel only before beneficiary acceptance.
+`preliminary_* -> challenged -> approved | blocked`, where challenge records
+remain submitted, invalid, rejected, substantiated, or unresolved until the
+bounded window closes. Invalid, abandoned, or unresolved challenges preserve
+the original preliminary outcome; only substantiated contradictions reverse
+it. A sponsor may cancel only before beneficiary acceptance.
 
 SpecGuard also lets the beneficiary register one HTTPS specification mirror while
 the guard is active. It is used whenever the sponsor-controlled primary cannot
@@ -89,9 +95,24 @@ criterion-level authorization consequence before any application state can
 become payable. The contract still does not guarantee that web publishers,
 declared authorities, models, or providers are truthful or available.
 
-## StudioNet release evidence — v0.3.0
+## v0.4.0 remediation source — not deployed
 
-The canonical contract is
+- Contract source: `contracts/specguard.py`
+- Release version: `0.4.0`
+- Deployment status: **undeployed; deployment requires separate authorization**
+- Release checks: **45 tests passed**, GenVM lint PASS, ABI/schema PASS, and
+  preflight PASS on the remediation branch.
+- Contract SHA-256 at this closeout: `e85810806c942c4c9f4abeb164400b52ba0a79a89e396afd24a7aae1e9b5565f`.
+- This hash must be recalculated from the deployment bytes immediately before
+  any separately authorized future deploy.
+
+## Historical StudioNet release evidence — v0.3.0
+
+The v0.3.0 deployment is retained for provenance and incident history only.
+It is not the v0.4.0 remediation deployment and must not be used to claim the
+new challenge or provenance invariants.
+
+The historical v0.3.0 contract was
 [`0x79E1948E93a28F3B90001a2cB984566a0BF781C7`](https://explorer-studio.genlayer.com/address/0x79E1948E93a28F3B90001a2cB984566a0BF781C7),
 deployed from frozen contract-source commit `d68374aa4ea41a4f685e23cdb66f9f978ce279c9` in
 [deployment transaction `0x704484a21ea26daa000e9e523caef81f119680cd0b0e7e7599f3c827aa4682e4`](https://explorer-studio.genlayer.com/tx/0x704484a21ea26daa000e9e523caef81f119680cd0b0e7e7599f3c827aa4682e4).
