@@ -1,9 +1,9 @@
 # SpecGuard final audit
 
-## v0.4.1 remediation closeout (source not deployed)
+## v0.4.1 remediation closeout and deployment
 
-The current source is `v0.4.1` and remains undeployed pending separate
-authorization. This closeout addresses the residual challenge/escrow and
+The current source is `v0.4.1` and is deployed on StudioNet at
+`0xCbeD8bb09981a42347C87928d1dCd2A75552b8e8`. This closeout addresses the residual challenge/escrow and
 corroboration findings: invalid or unreviewed challenges could reach a refund
 path, one challenge could monopolize the window, cited evidence could be less
 independent than the manifest-wide counts suggested, and original-source
@@ -13,13 +13,21 @@ policies.
 
 The corrected source preserves independent leader/validator observation,
 criterion-level equivalence, fail-closed model parsing, one-shot debit-before-
-dispatch settlement, and bounded liveness. No live transaction or new address
-is claimed for this source.
+dispatch settlement, and bounded liveness. The deployment itself was finalized
+and source-matched; no funded guard or lifecycle transaction is claimed for
+this release pass.
 
 Closeout verification: 49 tests passed, GenVM lint passed, ABI/schema
-generation passed, and `scripts/preflight.py` passed. The current contract
-source SHA-256 is
+generation passed, and `scripts/preflight.py` passed. Main CI run
+[39158223106](https://github.com/Bibidee/specguard/actions/runs/39158223106)
+also passed on merged commit `8082a0a28d2f72650054f135a4ea6b5218cf0d1c`.
+The deployment transaction
+[`0xd4f781f345ddd48c323ca4dc36f6c18ec1e01f3489365d1e4496b015dc4eae2e`](https://explorer-studio.genlayer.com/tx/0xd4f781f345ddd48c323ca4dc36f6c18ec1e01f3489365d1e4496b015dc4eae2e)
+finalized with `MAJORITY_AGREE` and GenVM `SUCCESS`. `gen_getContractCode`
+returned 52,925 bytes and matched the local source byte-for-byte. The current
+contract source SHA-256 is
 `b40b6a205b8cc8683481d0e3d8086f6cb6c6f566163ed3ec773eca7dd1c577c2`.
+No funded guard or lifecycle transaction was performed in this deployment pass.
 
 ### Regression matrix
 
@@ -35,7 +43,8 @@ source SHA-256 is
 | Original-source failure looked like challenge invalidity | Scoped observation errors preserve the preliminary decision and keep the challenge retryable | `test_original_failure_during_challenge_is_retryable_not_challenge_invalid` |
 | Unauthorized economic transitions | Sponsor-only blocked refund and role-gated expiry/settlement | `test_unauthorized_refund_and_expiry_cannot_move_escrow` |
 
-The v0.3 deployment and earlier releases below are historical evidence only.
+The v0.3 deployment and earlier releases below are historical evidence only;
+the v0.4.1 address above is the current deployment.
 
 # SpecGuard v0.2.2 historical audit
 
@@ -45,7 +54,7 @@ This document's v0.2.2 custody observations remain historical. v0.3.0 added
 immutable criterion policies, distinct-authority corroboration thresholds,
 criterion-level validator equivalence, application challenges, and bounded
 challenge liveness. It was deployed and source-matched as historical evidence;
-it is superseded by the undeployed v0.4.1 remediation source above.
+it is superseded by the deployed v0.4.1 remediation source above.
 
 Audit branch: `codex/specguard-final-audit`.
 
