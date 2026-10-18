@@ -1,4 +1,4 @@
-# Testing v0.4
+# Testing v0.4.1
 
 Run `python scripts/preflight.py` for syntax, all tests, GenVM lint, and ABI
 schema parity. The Direct Mode suite uses official `genlayer-test` deployment,
@@ -7,10 +7,11 @@ sender, web, LLM, and validator facilities.
 The suite covers policy validation, duplicate IDs, role authorization, deposit
 and deadline boundaries, hash verification, primary/mirror behavior, malformed
 model output, bounded infrastructure grace, criterion-complete approval,
-critical failures, false independence, validator disagreement, challenge
+critical failures, false independence, cited-origin matching, validator disagreement, challenge
 reversal, invalid and unavailable challenge evidence, abandoned challenges,
 cross-manifest evidence-ID collisions, three-role challenge fairness, early
-finalization protection, unsupported authenticated provenance, cancellation,
+challenge retry and deadline boundaries, original-versus-challenge failure
+classification, unsupported authenticated provenance, cancellation,
 expiry, active-case accounting, unauthorized refund/expiry, and
 debit-before-dispatch settlement ordering.
 

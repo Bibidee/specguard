@@ -1,19 +1,19 @@
 # Deployment status
 
-## Current v0.4.0 remediation source — not deployed
+## Current v0.4.1 remediation source — not deployed
 
-- Source version: `0.4.0`
+- Source version: `0.4.1`
 - Deployment status: **undeployed**; no new address or transaction is claimed.
-- Local release gate: **45 tests passed**, GenVM lint PASS, ABI/schema PASS, and
+- Local release gate: **49 tests passed**, GenVM lint PASS, ABI/schema PASS, and
   preflight PASS.
-- Current contract SHA-256: `e85810806c942c4c9f4abeb164400b52ba0a79a89e396afd24a7aae1e9b5565f`
+- Current contract SHA-256: `b40b6a205b8cc8683481d0e3d8086f6cb6c6f566163ed3ec773eca7dd1c577c2`
 - The source includes bounded multi-party challenge records, global evidence-ID
   collision checks, committed-origin corroboration, sponsor-only blocked
   refunds, and safe challenge deadline finalization.
 - Deployment requires a separately authorized transaction after the complete
   release gate and a fresh `gen_getContractCode` byte-for-byte parity check.
 
-## Historical v0.3.0 — verified; superseded by the v0.4.0 source
+## Historical v0.3.0 — verified; superseded by the v0.4.1 source
 
 - Frozen contract-source commit: `d68374aa4ea41a4f685e23cdb66f9f978ce279c9`
 - Fixture/documentation commit used for live artifacts: `23ec793d6dba5ddc65890fd448d2f72d961f8e27`
@@ -57,7 +57,7 @@ authority labels for the controlled lifecycle proof; these labels do not prove
 independent real-world publisher identity.
 
 All sections below are historical and are retained only for the exact source
-versions they describe. They are not current deployment evidence for v0.4.0.
+versions they describe. They are not current deployment evidence for v0.4.1.
 
 ## Historical v0.1.0 — superseded; do not use
 

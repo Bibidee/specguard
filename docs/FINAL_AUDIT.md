@@ -1,23 +1,25 @@
 # SpecGuard final audit
 
-## v0.4.0 remediation closeout (source not deployed)
+## v0.4.1 remediation closeout (source not deployed)
 
-The current source is `v0.4.0` and remains undeployed pending separate
-authorization. This closeout addresses two confirmed v0.3 challenge/escrow
-vulnerabilities: invalid or unreviewed challenges could reach a refund path,
-and one challenge could monopolize the window. It also rejects cross-manifest
-evidence-ID collisions, counts committed HTTPS origins in corroboration, and
-rejects unsupported authenticated-provenance policies.
+The current source is `v0.4.1` and remains undeployed pending separate
+authorization. This closeout addresses the residual challenge/escrow and
+corroboration findings: invalid or unreviewed challenges could reach a refund
+path, one challenge could monopolize the window, cited evidence could be less
+independent than the manifest-wide counts suggested, and original-source
+failures could be misclassified during challenge review. It also rejects
+cross-manifest evidence-ID collisions and unsupported authenticated-provenance
+policies.
 
 The corrected source preserves independent leader/validator observation,
 criterion-level equivalence, fail-closed model parsing, one-shot debit-before-
 dispatch settlement, and bounded liveness. No live transaction or new address
 is claimed for this source.
 
-Closeout verification: 45 tests passed, GenVM lint passed, ABI/schema
+Closeout verification: 49 tests passed, GenVM lint passed, ABI/schema
 generation passed, and `scripts/preflight.py` passed. The current contract
 source SHA-256 is
-`e85810806c942c4c9f4abeb164400b52ba0a79a89e396afd24a7aae1e9b5565f`.
+`b40b6a205b8cc8683481d0e3d8086f6cb6c6f566163ed3ec773eca7dd1c577c2`.
 
 ### Regression matrix
 
@@ -28,6 +30,9 @@ source SHA-256 is
 | One party monopolized the challenge slot | Three bounded slots, one per eligible role, and no early terminal transition | `test_multiple_distinct_challengers_cannot_be_monopolized`, `test_reviewed_challenge_does_not_truncate_other_challenge_rights` |
 | Original/challenge evidence ID shadowing | IDs and `(url, hash)` commitments are globally unique per guard | `test_cross_manifest_evidence_id_collision_is_rejected` |
 | Caller-declared labels overstated provenance | Both authority labels and committed origins must be distinct; authenticated mode is rejected without a runtime attestation primitive | same-origin, false-independence, and authenticated-provenance tests |
+| Uncited evidence satisfied corroboration | Cited references must form a one-to-one authority/origin matching | `test_cited_evidence_must_have_mutually_independent_authority_origin_pairs`, `test_global_independence_counts_cannot_fake_three_source_matching` |
+| Challenge outage became terminal | Unresolved challenge records retain immutable evidence and are retryable after cooldown | `test_challenge_provider_retry_can_be_recovered_and_substantiated` |
+| Original-source failure looked like challenge invalidity | Scoped observation errors preserve the preliminary decision and keep the challenge retryable | `test_original_failure_during_challenge_is_retryable_not_challenge_invalid` |
 | Unauthorized economic transitions | Sponsor-only blocked refund and role-gated expiry/settlement | `test_unauthorized_refund_and_expiry_cannot_move_escrow` |
 
 The v0.3 deployment and earlier releases below are historical evidence only.
@@ -40,7 +45,7 @@ This document's v0.2.2 custody observations remain historical. v0.3.0 added
 immutable criterion policies, distinct-authority corroboration thresholds,
 criterion-level validator equivalence, application challenges, and bounded
 challenge liveness. It was deployed and source-matched as historical evidence;
-it is superseded by the undeployed v0.4.0 remediation source above.
+it is superseded by the undeployed v0.4.1 remediation source above.
 
 Audit branch: `codex/specguard-final-audit`.
 

@@ -1,8 +1,8 @@
 # SpecGuard
 
-> **v0.4.0 is the current remediation source.** It is locally and CI verified
+> **v0.4.1 is the current remediation source.** It is locally and CI verified
 > but intentionally not deployed. The v0.3.0 deployment below is historical
-> only; no address is presented as a v0.4.0 deployment.
+> only; no address is presented as a v0.4.1 deployment.
 
 SpecGuard is a standalone GenLayer Intelligent Contract primitive for releasing
 an escrowed conformance bond only after a hash-bound implementation satisfies a
@@ -42,13 +42,18 @@ HTTPS publisher, or guarantee an LLM judgment is correct.
 - Every policy criterion must be `pass`; any `fail` blocks authorization, while
   `unclear`, missing, unavailable, or low-confidence assessment is retryable.
 - A passing criterion must cite the policy's minimum number of distinct
-  **declared authorities and committed HTTPS origins**. A mirror or two URLs
-  on one origin count once, and declarations do not prove real-world identity.
+  **declared authorities and committed HTTPS origins**, with a one-to-one
+  matching among the cited evidence IDs. A mirror or two URLs on one origin
+  count once, uncited sources do not count, and declarations do not prove
+  real-world identity.
 - Authenticated publisher provenance is explicitly unsupported by the current
   GenVM API; a policy requesting it is rejected instead of being treated as
   authenticated by assertion.
 - Validators agree on criterion statuses, critical failures, provenance state,
   final outcome, and confidence within 20 points—not free-form rationale.
+- Challenge outages remain retryable per record; original-source failures during
+  a challenge preserve the preliminary decision, while hash-invalid challenge
+  evidence invalidates only that challenge.
 - Every payout uses a single transfer helper and follows debit-in-storage,
   persist-state, then emit-transfer ordering.
 
@@ -95,21 +100,21 @@ criterion-level authorization consequence before any application state can
 become payable. The contract still does not guarantee that web publishers,
 declared authorities, models, or providers are truthful or available.
 
-## v0.4.0 remediation source — not deployed
+## v0.4.1 remediation source — not deployed
 
 - Contract source: `contracts/specguard.py`
-- Release version: `0.4.0`
+- Release version: `0.4.1`
 - Deployment status: **undeployed; deployment requires separate authorization**
-- Release checks: **45 tests passed**, GenVM lint PASS, ABI/schema PASS, and
+- Release checks: **49 tests passed**, GenVM lint PASS, ABI/schema PASS, and
   preflight PASS on the remediation branch.
-- Contract SHA-256 at this closeout: `e85810806c942c4c9f4abeb164400b52ba0a79a89e396afd24a7aae1e9b5565f`.
+- Contract SHA-256 at this closeout: `b40b6a205b8cc8683481d0e3d8086f6cb6c6f566163ed3ec773eca7dd1c577c2`.
 - This hash must be recalculated from the deployment bytes immediately before
   any separately authorized future deploy.
 
 ## Historical StudioNet release evidence — v0.3.0
 
 The v0.3.0 deployment is retained for provenance and incident history only.
-It is not the v0.4.0 remediation deployment and must not be used to claim the
+It is not the v0.4.1 remediation deployment and must not be used to claim the
 new challenge or provenance invariants.
 
 The historical v0.3.0 contract was

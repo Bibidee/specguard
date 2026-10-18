@@ -1,6 +1,6 @@
 # SpecGuard design
 
-The current source is v0.4.0 and is not deployed. The v0.3.0 deployment
+The current source is v0.4.1 and is not deployed. The v0.3.0 deployment
 described in the historical evidence remains useful only for provenance.
 
 ## v0.4 acceptance policy and challenge lifecycle
@@ -28,13 +28,24 @@ until the bounded window closes and the aggregate outcome is finalized. This
 is an application-level challenge, not a mutation of GenLayer's native appeal
 model.
 
-## v0.4 liveness rule
+## v0.4.1 liveness and observation classification
 
 Both review and challenge infrastructure failures receive a 15-minute cooldown
-and a matching deadline extension, capped at seven days. This corrects the
-v0.2.2 near-deadline cooldown problem while retaining a finite termination path.
-Semantic uncertainty never becomes approval, and no provider outage produces a
-beneficiary payout.
+and a matching deadline extension, capped at seven days. A temporarily
+unresolved challenge keeps its immutable record and becomes reviewable again
+after that record's cooldown; another eligible challenge can be reviewed while
+the first is waiting. At the deadline, unresolved records are finalized without
+changing the original preliminary decision. Hash-invalid challenge evidence is
+classified as invalid, while failures in the original specification,
+implementation, or evidence are classified as original-source failures and
+remain retryable during a challenge. Semantic uncertainty never becomes
+approval, and no provider outage produces a beneficiary payout.
+
+For a passing criterion, the model's cited evidence IDs must themselves form a
+bounded one-to-one matching of the policy's minimum count: each selected
+reference must have a distinct declared authority and a distinct normalized
+HTTPS origin. Uncited manifest sources and mismatched authority/origin counts
+cannot rescue an insufficient citation set.
 
 ## Consensus boundary
 

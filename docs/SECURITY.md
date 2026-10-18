@@ -1,4 +1,4 @@
-# SpecGuard v0.4 security model (source not deployed)
+# SpecGuard v0.4.1 security model (source not deployed)
 
 ## Trust boundary
 
@@ -15,11 +15,13 @@ independent, but it is not an identity credential.
 | --- | --- | --- |
 | Artifact substitution | Hash before decode or visual review | hash mismatch and mirror tests |
 | Two copies called independent | Distinct declared-authority **and committed-origin** threshold | false-independence and same-origin tests |
+| Uncited source satisfies corroboration | Cited evidence IDs require a one-to-one authority/origin matching | cited-origin matching and three-source matching tests |
 | Prompt injection | Artifacts are explicitly quoted untrusted data | malformed/injection tests |
 | Favorable leader hides failure | Validators independently observe and compare criterion statuses | validator critical-failure test |
 | Invalid/unreviewed challenge manufactures refund | Append-only challenge records; deadline finalization restores the original decision | invalid-hash, unavailable-source, abandoned-challenge tests |
 | Challenge slot monopolization | Three bounded slots, one per eligible role, no early terminal transition | multi-challenger and early-resolution tests |
 | Cross-manifest evidence shadowing | Global evidence-ID collision rejection and immutable source index | collision regression |
+| Original source failure misclassified as challenge defect | Scoped observation errors preserve the preliminary decision and retry the challenge | original-source challenge failure tests |
 | Unsupported publisher authentication | `authenticated` policy mode is rejected until runtime attestation support exists | provenance policy test |
 | Double payout or refund | Single debit-before-dispatch settlement path | one-shot settlement regression |
 | Consumer abandonment | Beneficiary-only settlement after seven days | consumer timeout test |
