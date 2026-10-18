@@ -117,8 +117,19 @@ declared authorities, models, or providers are truthful or available.
 - `get_info()`: `SpecGuard`, version `0.4.1`, minimum confidence `75`, minimum
   deposit `1000000000000000` wei, maximum text bytes `16000`, maximum image
   bytes `2000000`, maximum guards per sponsor `64`, maximum challenges `3`.
-- No funded guard or lifecycle transaction was performed in this deployment
-  pass; prior v0.3 live lifecycle evidence remains historical.
+- Funded v0.4.1 lifecycle proof: guard `SG-LIVE-V041-20261018-A` completed
+  `funded -> active -> submitted -> preliminary_approved -> approved ->
+  paid_beneficiary` with a `0.001 GEN` deposit. Proposal, acceptance, submit,
+  review, finalization, and settlement all finalized with `MAJORITY_AGREE` and
+  GenVM `SUCCESS`. The first review safely persisted
+  `retryable / malformed_model_output`; the controlled review finalized
+  `preliminary_approved` with confidence `90` and rationale
+  `C1 is clearly satisfied by two independent pieces of evidence; no
+  contradictions found.` The final settlement paid the designated beneficiary
+  in full; the canonical record reports `deposit: 0`,
+  `settled_amount: 1000000000000000`, and `reason: paid_beneficiary`.
+  Transaction-level evidence and immutable artifact commitments are recorded
+  in [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md).
 
 ## Historical StudioNet release evidence — v0.3.0
 
