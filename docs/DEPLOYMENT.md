@@ -1,17 +1,30 @@
 # Deployment status
 
-## Current v0.4.1 remediation source — not deployed
+## Current v0.4.1 StudioNet deployment
 
 - Source version: `0.4.1`
-- Deployment status: **undeployed**; no new address or transaction is claimed.
-- Local release gate: **49 tests passed**, GenVM lint PASS, ABI/schema PASS, and
-  preflight PASS.
-- Current contract SHA-256: `b40b6a205b8cc8683481d0e3d8086f6cb6c6f566163ed3ec773eca7dd1c577c2`
+- Merged source commit: `8082a0a28d2f72650054f135a4ea6b5218cf0d1c`
+- Network: GenLayer Studio Network (chain ID `61999`), CLI `genlayer@0.39.1`
+- Contract: [`0xCbeD8bb09981a42347C87928d1dCd2A75552b8e8`](https://explorer-studio.genlayer.com/address/0xCbeD8bb09981a42347C87928d1dCd2A75552b8e8)
+- Deployment transaction: [`0xd4f781f345ddd48c323ca4dc36f6c18ec1e01f3489365d1e4496b015dc4eae2e`](https://explorer-studio.genlayer.com/tx/0xd4f781f345ddd48c323ca4dc36f6c18ec1e01f3489365d1e4496b015dc4eae2e)
+- Deployment result: `FINALIZED`, `MAJORITY_AGREE`, GenVM `SUCCESS`
+- Local source bytes: `52925`
+- Deployed source bytes: `52925`
+- Raw source SHA-256: `b40b6a205b8cc8683481d0e3d8086f6cb6c6f566163ed3ec773eca7dd1c577c2`
+- Source parity: `gen_getContractCode` returned the same 52,925 bytes and
+  matched byte-for-byte: **YES**.
+- Local release gate: **49 tests passed**, 0 skipped, 0 failed; GenVM lint PASS,
+  ABI/schema PASS, and preflight PASS.
+- GitHub Actions: [39158223106](https://github.com/Bibidee/specguard/actions/runs/39158223106) completed successfully for this merged HEAD.
+- `get_info()`: `name=SpecGuard`, `version=0.4.1`, `min_confidence=75`,
+  `min_deposit_wei=1000000000000000`, `max_text_bytes=16000`,
+  `max_image_bytes=2000000`, `max_cases_per_sponsor=64`, `max_challenges=3`.
+- No funded guard, escrow, challenge, settlement, or other lifecycle write was
+  executed during this deployment pass. The live transaction tables below are
+  historical evidence for superseded releases.
 - The source includes bounded multi-party challenge records, global evidence-ID
   collision checks, committed-origin corroboration, sponsor-only blocked
   refunds, and safe challenge deadline finalization.
-- Deployment requires a separately authorized transaction after the complete
-  release gate and a fresh `gen_getContractCode` byte-for-byte parity check.
 
 ## Historical v0.3.0 — verified; superseded by the v0.4.1 source
 

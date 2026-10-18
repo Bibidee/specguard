@@ -1,6 +1,7 @@
 # SpecGuard design
 
-The current source is v0.4.1 and is not deployed. The v0.3.0 deployment
+The current source is v0.4.1 and is deployed on StudioNet at
+`0xCbeD8bb09981a42347C87928d1dCd2A75552b8e8`. The v0.3.0 deployment
 described in the historical evidence remains useful only for provenance.
 
 ## v0.4 acceptance policy and challenge lifecycle

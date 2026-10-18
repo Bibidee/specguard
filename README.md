@@ -1,8 +1,8 @@
 # SpecGuard
 
-> **v0.4.1 is the current remediation source.** It is locally and CI verified
-> but intentionally not deployed. The v0.3.0 deployment below is historical
-> only; no address is presented as a v0.4.1 deployment.
+> **v0.4.1 is the current deployed release.** Its source is frozen, CI verified,
+> and matched byte-for-byte against the StudioNet deployment below. The v0.3.0
+> deployment remains historical only.
 
 SpecGuard is a standalone GenLayer Intelligent Contract primitive for releasing
 an escrowed conformance bond only after a hash-bound implementation satisfies a
@@ -100,16 +100,25 @@ criterion-level authorization consequence before any application state can
 become payable. The contract still does not guarantee that web publishers,
 declared authorities, models, or providers are truthful or available.
 
-## v0.4.1 remediation source — not deployed
+## v0.4.1 StudioNet release evidence
 
 - Contract source: `contracts/specguard.py`
 - Release version: `0.4.1`
-- Deployment status: **undeployed; deployment requires separate authorization**
+- Merged source commit: `8082a0a28d2f72650054f135a4ea6b5218cf0d1c`
+- Deployment network: GenLayer Studio Network, chain ID `61999`
+- Deployment status: **FINALIZED**, `MAJORITY_AGREE`, GenVM `SUCCESS`
+- Contract: [`0xCbeD8bb09981a42347C87928d1dCd2A75552b8e8`](https://explorer-studio.genlayer.com/address/0xCbeD8bb09981a42347C87928d1dCd2A75552b8e8)
+- Deployment transaction: [`0xd4f781f345ddd48c323ca4dc36f6c18ec1e01f3489365d1e4496b015dc4eae2e`](https://explorer-studio.genlayer.com/tx/0xd4f781f345ddd48c323ca4dc36f6c18ec1e01f3489365d1e4496b015dc4eae2e)
+- Source parity: `gen_getContractCode` returned **52,925 bytes**, exactly equal
+  to the local source byte-for-byte.
+- Contract SHA-256: `b40b6a205b8cc8683481d0e3d8086f6cb6c6f566163ed3ec773eca7dd1c577c2`
 - Release checks: **49 tests passed**, GenVM lint PASS, ABI/schema PASS, and
-  preflight PASS on the remediation branch.
-- Contract SHA-256 at this closeout: `b40b6a205b8cc8683481d0e3d8086f6cb6c6f566163ed3ec773eca7dd1c577c2`.
-- This hash must be recalculated from the deployment bytes immediately before
-  any separately authorized future deploy.
+  preflight PASS. Main CI run [39158223106](https://github.com/Bibidee/specguard/actions/runs/39158223106) passed on this merged commit.
+- `get_info()`: `SpecGuard`, version `0.4.1`, minimum confidence `75`, minimum
+  deposit `1000000000000000` wei, maximum text bytes `16000`, maximum image
+  bytes `2000000`, maximum guards per sponsor `64`, maximum challenges `3`.
+- No funded guard or lifecycle transaction was performed in this deployment
+  pass; prior v0.3 live lifecycle evidence remains historical.
 
 ## Historical StudioNet release evidence — v0.3.0
 

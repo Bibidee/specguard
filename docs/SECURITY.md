@@ -1,4 +1,4 @@
-# SpecGuard v0.4.1 security model (source not deployed)
+# SpecGuard v0.4.1 security model
 
 ## Trust boundary
 
